@@ -1,0 +1,28 @@
+# 민감 정보
+.env
+*.pickle
+token.pickle
+
+# Google OAuth 클라이언트 시크릿
+client_secret*.json
+scripts/client_secrets.json
+
+# 미디어 파일 (용량 큰 파일)
+music_file/
+audio/
+output/
+
+# 이미지 (필요시 개별 추가)
+images/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# OS
+.DS_Store
+Thumbs.db
