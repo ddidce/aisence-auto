@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AIsence Studio</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    * { font-family: 'Inter', sans-serif; }
+    body { background: #1c1c1e; color: #e8e3d8; min-height: 100vh; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #2a2a2c; }
+    ::-webkit-scrollbar-thumb { background: #d97706; border-radius: 3px; }
+
+    .aisence-input {
+      background: #2a2a2c; border: 1px solid #3a3a3c; color: #e8e3d8;
+      border-radius: 10px; padding: 12px 16px; width: 100%;
+      transition: border-color .2s, box-shadow .2s; outline: none; font-size: 14px;
+    }
+    .aisence-input:focus { border-color: #d97706; box-shadow: 0 0 0 3px rgba(217,119,6,.12); }
+    .aisence-input::placeholder { color: #666; }
+
+    #series-name {
+      font-size: 18px; font-weight: 600; padding: 16px 20px;
+      background: #242426; border: 1px solid #3a3a3c; border-radius: 14px;
+      outline: none; width: 100%; color: #e8e3d8;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    #series-name:focus { border-color: #d97706; box-shadow: 0 0 0 4px rgba(217,119,6,.12); }
+    #series-name::placeholder { color: #555; font-weight: 400; font-size: 16px; }
+
+    select.aisence-input option { background: #2a2a2c; }
+
+    /* 드롭존 */
+    #drop-zone {
+      border: 2px dashed #3a3a3c; border-radius: 14px; background: #242426;
+      transition: all .25s; cursor: pointer; min-height: 100px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+    }
+    #drop-zone.drag-over { border-color: #d97706; background: rgba(217,119,6,.05); }
+    #drop-zone.has-image  { border-color: #d97706; border-style: solid; }
+
+    /* 버튼들 */
+    #generate-btn {
+      background: linear-gradient(135deg, #d97706, #b45309); color: #fff;
+      border: none; border-radius: 12px; padding: 16px; font-size: 16px;
+      font-weight: 600; cursor: pointer; width: 100%;
+      transition: opacity .2s, transform .15s, box-shadow .2s;
+      box-shadow: 0 4px 24px rgba(217,119,6,.25);
+    }
+    #generate-btn:hover:not(:disabled) { opacity:.92; transform:translateY(-1px); box-shadow:0 8px 32px rgba(217,119,6,.38); }
+    #generate-btn:disabled { opacity:.4; cursor:not-allowed; transform:none; }
+
+    /* 샘플 카드 */
+    #sample-card {
+      background: #1e2820; border: 1px solid #22c55e; border-radius: 14px;
+      padding: 20px; display: none; animation: fadeInUp .4s ease;
+    }
+    #sample-card.visible { display: block; }
+
+    audio { width: 100%; border-radius: 8px; margin: 12px 0; accent-color: #d97706; }
+
+    .btn-approve {
+      background: linear-gradient(135deg, #22c55e, #16a34a); color: #fff;
+      border: none; border-radius: 10px; padding: 11px 20px;
+      font-size: 13px; font-weight: 600; cursor: pointer; flex: 1;
+      transition: opacity .2s, transform .15s;
+    }
+    .btn-approve:hover { opacity:.9; transform:translateY(-1px); }
+
+    .btn-retry {
+      background: #2a2a2c; color: #888; border: 1px solid #3a3a3c;
+      border-radius: 10px; padding: 11px 16px; font-size: 13px;
+      font-weight: 500; cursor: pointer; transition: all .2s;
+    }
+    .btn-retry:hover { border-color: #d97706; color: #d97706; }
+
+    /* 로그 */
+    #log-box {
+      background: #161618; border: 1px solid #2a2a2c; border-radius: 12px;
+      font-family: 'Courier New', monospace; font-size: 13px;
+      padding: 20px; min-height: 160px; max-height: 260px;
+      overflow-y: auto; line-height: 1.7;
+    }
+
+    /* 단계 */
+    .step-item { display:flex; align-items:center; gap:12px; padding:8px 0; border-bottom:1px solid #2a2a2c; }
+    .step-item:last-child { border-bottom:none; }
+    .step-icon {
+      width:26px; height:26px; border-radius:50%; display:flex;
+      align-items:center; justify-content:center; font-size:11px; flex-shrink:0; transition:all .4s;
+    }
+    .step-icon.waiting { background:#2a2a2c; color:#555; border:1px solid #3a3a3c; }
+    .step-icon.active  { background:rgba(217,119,6,.15); color:#d97706; border:1px solid #d97706; animation:pulse-amber 1.2s ease-in-out infinite; }
+    .step-icon.done    { background:rgba(34,197,94,.12); color:#22c55e; border:1px solid #22c55e; }
+    .step-icon.error   { background:rgba(239,68,68,.12); color:#ef4444; border:1px solid #ef4444; }
+    @keyframes pulse-amber {
+      0%,100% { box-shadow:0 0 0 0 rgba(217,119,6,.4); }
+      50%      { box-shadow:0 0 0 6px rgba(217,119,6,0); }
+    }
+    .step-label { font-size:13px; font-weight:500; color:#888; transition:color .3s; }
+    .step-label.active { color:#e8e3d8; }
+    .step-label.done   { color:#22c55e; }
+
+    /* 결과 카드 */
+    #result-card {
+      background:linear-gradient(135deg,#1e1800,#1e1e0a); border:1px solid #d97706;
+      border-radius:14px; padding:22px; display:none; animation:fadeInUp .5s ease;
+    }
+    @keyframes fadeInUp { from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);} }
+
+    .aisence-card { background:#242426; border:1px solid #2a2a2c; border-radius:14px; padding:20px; }
+    .section-label { font-size:11px; font-weight:600; letter-spacing:1.2px; text-transform:uppercase; color:#666; margin-bottom:8px; }
+
+    .spinner { width:16px; height:16px; border:2px solid rgba(255,255,255,.3); border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; display:inline-block; vertical-align:middle; margin-right:8px; }
+    @keyframes spin { to{transform:rotate(360deg);} }
+
+    .job-item { background:#242426; border:1px solid #2a2a2c; border-radius:10px; padding:14px 18px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .job-item:hover { border-color:#3a3a3c; }
+
+    /* 미리보기 모달 */
+    #preview-modal { position:fixed; inset:0; z-index:100; background:rgba(0,0,0,.75); backdrop-filter:blur(4px); display:none; align-items:center; justify-content:center; padding:20px; }
+    #preview-modal.open { display:flex; animation:fadeIn .25s ease; }
+    @keyframes fadeIn { from{opacity:0;}to{opacity:1;} }
+    .modal-box { background:#242426; border:1px solid #3a3a3c; border-radius:18px; width:100%; max-width:540px; max-height:90vh; overflow-y:auto; padding:28px; }
+    .yt-preview-card { background:#0f0f0f; border-radius:12px; overflow:hidden; border:1px solid #2a2a2a; }
+    .yt-preview-thumb { width:100%; aspect-ratio:16/9; object-fit:cover; display:block; }
+    .yt-preview-thumb-placeholder { width:100%; aspect-ratio:16/9; background:#1a1a1a; display:flex; align-items:center; justify-content:center; font-size:48px; }
+    .yt-preview-info { padding:14px 16px; }
+    .yt-preview-title { font-size:14px; font-weight:600; color:#f1f1f1; line-height:1.4; margin-bottom:5px; }
+    .yt-preview-channel { font-size:12px; color:#aaa; margin-bottom:3px; }
+    .yt-preview-meta { font-size:11px; color:#717171; }
+    .yt-preview-desc { background:#1a1a1a; border-radius:8px; padding:10px 12px; font-size:11px; color:#aaa; white-space:pre-line; line-height:1.6; max-height:120px; overflow-y:auto; margin-top:10px; }
+    .btn-confirm { background:linear-gradient(135deg,#22c55e,#16a34a); color:#fff; border:none; border-radius:10px; padding:12px 20px; font-size:14px; font-weight:600; cursor:pointer; flex:1; transition:opacity .2s, transform .15s; }
+    .btn-confirm:hover { opacity:.9; transform:translateY(-1px); }
+    .btn-cancel { background:#2a2a2c; color:#888; border:1px solid #3a3a3c; border-radius:10px; padding:12px 16px; font-size:14px; cursor:pointer; transition:all .2s; }
+    .btn-cancel:hover { border-color:#ef4444; color:#ef4444; }
+
+    .dot-loading { display:inline-flex; gap:4px; align-items:center; }
+    .dot-loading span { width:4px; height:4px; border-radius:50%; background:#d97706; animation:dotFlash 1.2s ease-in-out infinite; }
+    .dot-loading span:nth-child(2) { animation-delay:.2s; }
+    .dot-loading span:nth-child(3) { animation-delay:.4s; }
+    @keyframes dotFlash { 0%,80%,100%{opacity:.2;}40%{opacity:1;} }
+  </style>
+</head>
+<body>
+
+<!-- 헤더 -->
+<header class="border-b px-6 py-4 flex items-center justify-between sticky top-0 z-50"
+  style="background:#1c1c1e; border-color:#2a2a2c;">
+  <div class="flex items-center gap-3">
+    <div class="w-9 h-9 rounded-xl flex items-center justify-center text-lg"
+      style="background:linear-gradient(135deg,#d97706,#92400e);">🎵</div>
+    <div>
+      <h1 class="text-base font-bold tracking-tight" style="color:#e8e3d8;">AIsence Studio</h1>
+      <p class="text-xs" style="color:#666;">AI 음악 자동화 파이프라인</p>
+    </div>
+  </div>
+  <span id="server-status" class="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full"
+    style="background:#2a2a2c;color:#666;">
+    <span id="status-dot" style="width:6px;height:6px;border-radius:50%;background:#555;display:inline-block;"></span>
+    <span id="status-text">연결 확인 중</span>
+  </span>
+</header>
+
+<!-- 메인 -->
+<main class="max-w-5xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+  <!-- 왼쪽: 입력 -->
+  <section>
+    <h2 class="text-lg font-semibold mb-1" style="color:#e8e3d8;">새 시리즈 생성</h2>
+    <p class="text-xs mb-5" style="color:#666;">시리즈명과 이미지만 입력하면 나머지는 자동으로 생성됩니다.</p>
+
+    <!-- 시리즈명 -->
+    <div class="mb-5">
+      <div class="section-label">시리즈명</div>
+      <input id="series-name" type="text" placeholder="예: 카페재즈시리즈" oninput="onSeriesInput()" />
+    </div>
+
+    <!-- 분위기/콘셉트 -->
+    <div class="mb-4">
+      <div class="flex items-center justify-between mb-2">
+        <div class="section-label" style="margin-bottom:0;">분위기 / 콘셉트</div>
+        <span id="analyzing-indicator" style="display:none;">
+          <span class="dot-loading"><span></span><span></span><span></span></span>
+        </span>
+      </div>
+      <textarea id="pv-concept" class="aisence-input resize-none" rows="3"
+        placeholder="시리즈명을 입력하면 자동으로 채워집니다..." style="color:#bbb;"></textarea>
+    </div>
+
+    <!-- 유튜브 제목 -->
+    <div class="mb-4">
+      <div class="section-label">유튜브 제목</div>
+      <input id="pv-title" type="text" class="aisence-input"
+        placeholder="시리즈명을 입력하면 자동으로 채워집니다..." style="color:#d97706;font-weight:500;" />
+    </div>
+
+    <!-- 장르 -->
+    <div class="mb-5">
+      <div class="section-label">장르</div>
+      <select id="pv-genre" class="aisence-input">
+        <option value="lofi">🎧 Lofi Hip-Hop</option>
+        <option value="heal">🌿 힐링 / Ambient</option>
+        <option value="bass">🌑 Bass / Dark</option>
+        <option value="dawn">🌙 새벽 / Dawn</option>
+        <option value="drive">🚗 드라이브</option>
+        <option value="drive_summer">☀️ 여름 드라이브</option>
+        <option value="drive_night">🌃 야간 드라이브</option>
+        <option value="drive_hype">🔥 신나는 드라이브</option>
+        <option value="drive_chill">🛣️ 여유로운 드라이브</option>
+        <option value="drive_rain">🌧️ 빗속 드라이브</option>
+      </select>
+    </div>
+
+    <!-- 배경 이미지 -->
+    <div class="mb-6">
+      <div class="section-label">배경 이미지</div>
+      <div id="drop-zone" onclick="document.getElementById('image-input').click()">
+        <input id="image-input" type="file" accept=".png,.jpg,.jpeg,.webp" class="hidden" />
+        <div id="drop-placeholder" class="flex flex-col items-center gap-2 pointer-events-none">
+          <span class="text-3xl">🖼️</span>
+          <span class="text-sm" style="color:#666;">드래그하거나 클릭해서 업로드</span>
+          <span class="text-xs" style="color:#444;">PNG · JPG · 1920×1080 권장</span>
+        </div>
+        <div id="drop-preview-wrap" class="hidden w-full p-3">
+          <img id="preview-img" class="max-h-32 object-contain rounded-lg mx-auto" />
+          <p id="preview-name" class="text-xs text-center mt-2" style="color:#666;"></p>
+        </div>
+      </div>
+    </div>
+
+    <button id="generate-btn" onclick="startGenerate()">✨ 생성 시작</button>
+  </section>
+
+  <!-- 오른쪽: 진행상황 -->
+  <section class="flex flex-col gap-5">
+
+    <!-- 단계 -->
+    <div class="aisence-card">
+      <h3 class="text-xs font-semibold mb-3" style="color:#888;letter-spacing:.5px;text-transform:uppercase;">파이프라인 단계</h3>
+      <div class="step-item">
+        <div class="step-icon waiting" id="step-sample-icon">1</div>
+        <div>
+          <div class="step-label" id="step-sample-label">샘플 확인</div>
+          <div class="text-xs" style="color:#555;">Suno AI — 샘플 1곡 생성 후 확인</div>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-icon waiting" id="step-music-icon">2</div>
+        <div>
+          <div class="step-label" id="step-music-label">전체 음악 생성</div>
+          <div class="text-xs" style="color:#555;">Suno AI — 나머지 트랙 생성</div>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-icon waiting" id="step-video-icon">3</div>
+        <div>
+          <div class="step-label" id="step-video-label">영상 제작</div>
+          <div class="text-xs" style="color:#555;">MoviePy — 이미지 + 음악 → MP4</div>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-icon waiting" id="step-preview-icon">4</div>
+        <div>
+          <div class="step-label" id="step-preview-label">미리보기 확인</div>
+          <div class="text-xs" style="color:#555;">업로드 전 최종 확인</div>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-icon waiting" id="step-upload-icon">5</div>
+        <div>
+          <div class="step-label" id="step-upload-label">유튜브 업로드</div>
+          <div class="text-xs" style="color:#555;">YouTube API — 자동 업로드</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 샘플 플레이어 카드 -->
+    <div id="sample-card">
+      <div class="flex items-center gap-2 mb-3">
+        <span>👂</span>
+        <span class="text-sm font-semibold" style="color:#22c55e;">샘플 생성 완료 — 들어보세요!</span>
+      </div>
+      <p class="text-xs mb-2" style="color:#888;">이 느낌으로 나머지 음악도 만들게요. 마음에 드시나요?</p>
+      <audio id="sample-audio" controls></audio>
+      <div class="flex gap-2 mt-1">
+        <button class="btn-retry" id="btn-retry-sample" onclick="retrySample()">🔄 다시 만들기</button>
+        <button class="btn-approve" id="btn-approve-sample" onclick="approveSample()">✅ 좋아요! 나머지 만들기</button>
+      </div>
+    </div>
+
+    <!-- 실시간 로그 -->
+    <div>
+      <div class="section-label">실시간 로그</div>
+      <div id="log-box">
+        <span style="color:#444;">// 생성 시작 버튼을 누르면 로그가 여기에 표시됩니다.</span>
+      </div>
+    </div>
+
+    <!-- 완료 결과 -->
+    <div id="result-card">
+      <div class="flex items-center gap-3 mb-3">
+        <span class="text-xl">✅</span>
+        <div>
+          <p class="font-semibold text-sm" style="color:#d97706;">업로드 완료!</p>
+          <p class="text-xs" style="color:#888;">유튜브에 성공적으로 업로드되었습니다.</p>
+        </div>
+      </div>
+      <a id="yt-link" href="#" target="_blank"
+        class="flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium hover:opacity-80 transition-opacity"
+        style="background:#1f1f1f;color:#ff4444;border:1px solid #2a2a2c;text-decoration:none;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/></svg>
+        <span id="yt-link-text">YouTube에서 보기</span>
+      </a>
+    </div>
+
+  </section>
+</main>
+
+<!-- 최근 작업 -->
+<section class="max-w-5xl mx-auto px-4 pb-12">
+  <div class="flex items-center justify-between mb-3">
+    <h2 class="text-base font-semibold" style="color:#888;">최근 작업</h2>
+    <button onclick="loadJobs()" class="text-xs px-3 py-1.5 rounded-lg"
+      style="background:#242426;color:#888;border:1px solid #2a2a2c;">새로고침</button>
+  </div>
+  <div id="job-list" class="flex flex-col gap-2">
+    <p class="text-sm" style="color:#444;">// 작업 내역이 여기에 표시됩니다.</p>
+  </div>
+</section>
+
+<!-- 미리보기 모달 -->
+<div id="preview-modal">
+  <div class="modal-box">
+    <div class="flex items-center gap-3 mb-5">
+      <span>👁️</span>
+      <div>
+        <h3 class="font-semibold" style="color:#e8e3d8;">업로드 미리보기</h3>
+        <p class="text-xs" style="color:#888;">유튜브에 이렇게 올라갑니다.</p>
+      </div>
+    </div>
+    <div class="yt-preview-card mb-5">
+      <div id="yt-thumb-wrap"><div class="yt-preview-thumb-placeholder">🎵</div></div>
+      <div class="yt-preview-info">
+        <div class="yt-preview-title" id="modal-title">—</div>
+        <div class="yt-preview-channel">aisence · 조회수 0회</div>
+        <div class="yt-preview-meta">방금 전</div>
+        <div class="yt-preview-desc" id="modal-desc">—</div>
+      </div>
+    </div>
+    <div class="flex gap-3">
+      <button class="btn-cancel" id="modal-cancel-btn">⛔ 취소</button>
+      <button class="btn-confirm" id="modal-confirm-btn">📤 이대로 업로드</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentJobId      = null;
+let uploadedImagePath = null;
+let uploadedImageUrl  = null;
+let autoData = { concept:'', genre:'lofi', title:'' };
+let debounceTimer = null;
+
+// ── 서버 상태 ────────────────────────────────────────────────────────────────
+async function checkServer() {
+  try {
+    await fetch('/health');
+    document.getElementById('status-dot').style.background = '#22c55e';
+    document.getElementById('status-text').textContent = '서버 연결됨';
+    document.getElementById('server-status').style.color = '#22c55e';
+  } catch {
+    document.getElementById('status-dot').style.background = '#ef4444';
+    document.getElementById('status-text').textContent = '연결 실패';
+    document.getElementById('server-status').style.color = '#ef4444';
+  }
+}
+checkServer();
+
+// ── 시리즈명 입력 → 자동 분석 ────────────────────────────────────────────────
+function onSeriesInput() {
+  clearTimeout(debounceTimer);
+  const val = document.getElementById('series-name').value.trim();
+  if (!val) return;
+  debounceTimer = setTimeout(() => analyzeSeries(val), 600);
+}
+
+async function analyzeSeries(name) {
+  document.getElementById('analyzing-indicator').style.display = 'inline-flex';
+  document.getElementById('pv-concept').value = '분석 중...';
+  document.getElementById('pv-title').value   = '분석 중...';
+
+  try {
+    const res  = await fetch('/analyze-series', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({series_name: name})
+    });
+    const data = await res.json();
+    autoData = data;
+
+    const genreLabels = {
+      lofi:'🎧 Lofi Hip-Hop', heal:'🌿 힐링 / Ambient', bass:'🌑 Bass / Dark',
+      dawn:'🌙 새벽 / Dawn', drive:'🚗 드라이브', drive_summer:'☀️ 여름 드라이브',
+      drive_night:'🌃 야간 드라이브', drive_hype:'🔥 신나는 드라이브',
+      drive_chill:'🛣️ 여유로운 드라이브', drive_rain:'🌧️ 빗속 드라이브',
+    };
+    document.getElementById('pv-genre').value   = data.genre;
+    document.getElementById('pv-concept').value = data.concept;
+    document.getElementById('pv-title').value   = data.title;
+  } catch {
+    document.getElementById('pv-concept').value = '분석 실패';
+    document.getElementById('pv-title').value   = '—';
+  } finally {
+    document.getElementById('analyzing-indicator').style.display = 'none';
+  }
+}
+
+// ── 드래그앤드롭 ─────────────────────────────────────────────────────────────
+const dropZone = document.getElementById('drop-zone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) handleImageFile(e.dataTransfer.files[0]);
+});
+document.getElementById('image-input').addEventListener('change', e => {
+  if (e.target.files[0]) handleImageFile(e.target.files[0]);
+});
+
+async function handleImageFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('preview-img').src = e.target.result;
+    document.getElementById('preview-name').textContent = file.name;
+    document.getElementById('drop-placeholder').classList.add('hidden');
+    document.getElementById('drop-preview-wrap').classList.remove('hidden');
+    dropZone.classList.add('has-image');
+  };
+  reader.readAsDataURL(file);
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const res  = await fetch('/upload-image', {method:'POST', body:fd});
+    const data = await res.json();
+    uploadedImagePath = data.image_path;
+    uploadedImageUrl  = `/uploads/${data.filename}`;
+  } catch(e) { alert('이미지 업로드 실패: ' + e.message); }
+}
+
+// ── 단계 상태 ────────────────────────────────────────────────────────────────
+const STEP_ICONS = {sample:'👂', music:'🎵', video:'🎬', preview:'👁️', upload:'📤'};
+const STEP_NUMS  = {sample:1, music:2, video:3, preview:4, upload:5};
+
+function setStep(key, state) {
+  const icon  = document.getElementById(`step-${key}-icon`);
+  const label = document.getElementById(`step-${key}-label`);
+  if (!icon) return;
+  icon.className = `step-icon ${state}`;
+  label.className = `step-label ${state}`;
+  if (state==='done')       icon.innerHTML = '✓';
+  else if (state==='error') icon.innerHTML = '✗';
+  else if (state==='active') icon.innerHTML = STEP_ICONS[key];
+  else icon.innerHTML = STEP_NUMS[key];
+}
+function resetSteps() { Object.keys(STEP_ICONS).forEach(k => setStep(k,'waiting')); }
+
+// ── 로그 ─────────────────────────────────────────────────────────────────────
+function appendLog(text, time) {
+  const box  = document.getElementById('log-box');
+  const line = document.createElement('div');
+  let color  = '#888';
+  if (text.includes('✅') || text.includes('완료') || text.includes('[OK]')) color = '#22c55e';
+  else if (text.includes('❌') || text.includes('오류') || text.includes('실패')) color = '#ef4444';
+  else if (text.includes('🎵')) color = '#f59e0b';
+  else if (text.includes('🎬')) color = '#60a5fa';
+  else if (text.includes('📤')) color = '#a78bfa';
+  else if (text.includes('👂') || text.includes('샘플')) color = '#34d399';
+  else if (text.includes('👁️') || text.includes('미리보기')) color = '#f0abfc';
+  else if (text.includes('📁')) color = '#94a3b8';
+  else if (text.includes('⚠️') || text.includes('🔄')) color = '#f59e0b';
+  else if (text.startsWith('  ')) color = '#666';
+  const t = time ? `<span style="color:#444;">[${time}]</span> ` : '';
+  line.innerHTML = `${t}<span style="color:${color};">${escapeHtml(text)}</span>`;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+
+  // 단계 자동 업데이트
+  if      (text.includes('🎵 샘플'))          setStep('sample','active');
+  else if (text.includes('👂 샘플 준비'))     setStep('sample','active');
+  else if (text.includes('✅ 샘플 승인'))     { setStep('sample','done'); setStep('music','active'); }
+  else if (text.includes('🎵 나머지'))        setStep('music','active');
+  else if (text.includes('🎬 영상 제작'))     { setStep('music','done'); setStep('video','active'); }
+  else if (text.includes('👁️ 미리보기'))     { setStep('video','done'); setStep('preview','active'); }
+  else if (text.includes('📤 유튜브 업로드')) { setStep('preview','done'); setStep('upload','active'); }
+  else if (text.includes('✅ 완료'))          setStep('upload','done');
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── 생성 시작 ─────────────────────────────────────────────────────────────────
+async function startGenerate() {
+  const seriesName = document.getElementById('series-name').value.trim();
+  if (!seriesName) { alert('시리즈명을 입력해주세요.'); return; }
+
+  // 필드에서 직접 읽기 (수동 수정 반영)
+  const concept = document.getElementById('pv-concept').value.trim();
+  const title   = document.getElementById('pv-title').value.trim();
+  const genre   = document.getElementById('pv-genre').value;
+
+  if (!concept || !title) await analyzeSeries(seriesName);
+
+  const finalConcept = document.getElementById('pv-concept').value.trim() || autoData.concept;
+  const finalTitle   = document.getElementById('pv-title').value.trim()   || autoData.title;
+  const finalGenre   = document.getElementById('pv-genre').value          || autoData.genre;
+
+  const btn = document.getElementById('generate-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 생성 중...';
+  document.getElementById('log-box').innerHTML = '';
+  document.getElementById('result-card').style.display = 'none';
+  document.getElementById('sample-card').classList.remove('visible');
+  resetSteps();
+
+  appendLog(`▶ 파이프라인 시작: ${seriesName}`,
+    new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
+
+  try {
+    const res = await fetch('/generate', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        series_name: seriesName,
+        concept: finalConcept,
+        title: finalTitle,
+        genre: finalGenre,
+        image_path: uploadedImagePath || null,
+        extra_tracks: 4,
+      })
+    });
+    if (!res.ok) { const err = await res.json(); throw new Error(err.detail||'서버 오류'); }
+    const {job_id} = await res.json();
+    currentJobId = job_id;
+    listenProgress(job_id);
+  } catch(e) {
+    appendLog(`❌ 오류: ${e.message}`);
+    btn.disabled = false; btn.innerHTML = '✨ 생성 시작';
+  }
+}
+
+// ── SSE ──────────────────────────────────────────────────────────────────────
+function listenProgress(jobId) {
+  const btn = document.getElementById('generate-btn');
+  const es  = new EventSource(`/progress/${jobId}`);
+
+  es.onmessage = event => {
+    const data = JSON.parse(event.data);
+    if (data.type === 'log') {
+      appendLog(data.text, data.time);
+    } else if (data.type === 'sample_ready') {
+      showSamplePlayer(jobId);
+    } else if (data.type === 'preview') {
+      showPreviewModal(jobId, data);
+    } else if (data.type === 'done') {
+      es.close();
+      btn.disabled = false; btn.innerHTML = '✨ 생성 시작';
+      document.getElementById('sample-card').classList.remove('visible');
+      if (data.status==='done' && data.youtube_url) showResultCard(data.youtube_url);
+      else if (data.status==='cancelled') appendLog('⛔ 업로드가 취소되었습니다.');
+      else if (data.error) appendLog(`❌ 작업 실패: ${data.error}`);
+      loadJobs();
+    }
+  };
+  es.onerror = () => {
+    es.close(); btn.disabled=false; btn.innerHTML='✨ 생성 시작';
+    appendLog('⚠️ 연결이 끊어졌습니다.');
+  };
+}
+
+// ── 샘플 플레이어 ─────────────────────────────────────────────────────────────
+function showSamplePlayer(jobId) {
+  const audio = document.getElementById('sample-audio');
+  audio.src = `/sample/${jobId}?t=${Date.now()}`;
+  document.getElementById('sample-card').classList.add('visible');
+  // 버튼에 jobId 저장
+  document.getElementById('btn-approve-sample').dataset.jobId = jobId;
+  document.getElementById('btn-retry-sample').dataset.jobId  = jobId;
+}
+
+async function approveSample() {
+  const jobId = document.getElementById('btn-approve-sample').dataset.jobId;
+  document.getElementById('sample-card').classList.remove('visible');
+  appendLog('✅ 샘플 승인 — 나머지 음악 생성 시작');
+  await fetch(`/approve-sample/${jobId}`, {method:'POST'});
+}
+
+async function retrySample() {
+  const jobId = document.getElementById('btn-retry-sample').dataset.jobId;
+  document.getElementById('sample-card').classList.remove('visible');
+  document.getElementById('sample-audio').src = '';
+  appendLog('🔄 샘플 다시 생성 요청...');
+  await fetch(`/retry-sample/${jobId}`, {method:'POST'});
+}
+
+// ── 미리보기 모달 ─────────────────────────────────────────────────────────────
+function showPreviewModal(jobId, data) {
+  const thumbWrap = document.getElementById('yt-thumb-wrap');
+  thumbWrap.innerHTML = uploadedImageUrl
+    ? `<img src="${uploadedImageUrl}" class="yt-preview-thumb" />`
+    : `<div class="yt-preview-thumb-placeholder">🎵</div>`;
+  document.getElementById('modal-title').textContent = data.title || '—';
+  document.getElementById('modal-desc').textContent  = data.description || '—';
+  document.getElementById('preview-modal').classList.add('open');
+
+  document.getElementById('modal-confirm-btn').onclick = async () => {
+    document.getElementById('preview-modal').classList.remove('open');
+    appendLog('📤 유튜브 업로드 중...', new Date().toLocaleTimeString('ko-KR'));
+    await fetch(`/confirm-upload/${jobId}`, {method:'POST'});
+  };
+  document.getElementById('modal-cancel-btn').onclick = async () => {
+    document.getElementById('preview-modal').classList.remove('open');
+    appendLog('⛔ 업로드 취소됨');
+    await fetch(`/cancel-upload/${jobId}`, {method:'POST'});
+  };
+}
+
+// ── 결과 카드 ─────────────────────────────────────────────────────────────────
+function showResultCard(ytUrl) {
+  document.getElementById('yt-link').href = ytUrl;
+  document.getElementById('yt-link-text').textContent = ytUrl;
+  document.getElementById('result-card').style.display = 'block';
+}
+
+// ── 작업 목록 ─────────────────────────────────────────────────────────────────
+async function loadJobs() {
+  try {
+    const jobs = await (await fetch('/jobs')).json();
+    const list = document.getElementById('job-list');
+    if (!jobs.length) { list.innerHTML = '<p class="text-sm" style="color:#444;">// 작업 내역이 없습니다.</p>'; return; }
+    list.innerHTML = jobs.map(job => {
+      const sc = job.status==='done'?'#22c55e':job.status==='error'?'#ef4444':'#d97706';
+      const st = {done:'완료',error:'오류',cancelled:'취소'}[job.status] || '진행 중';
+      const em = {done:'✅',error:'❌',cancelled:'⛔'}[job.status] || '⏳';
+      const ytBtn = job.youtube_url
+        ? `<a href="${job.youtube_url}" target="_blank" style="background:#1f1f1f;color:#ff4444;border:1px solid #2a2a2c;text-decoration:none;font-size:12px;padding:5px 10px;border-radius:7px;">▶ 보기</a>`
+        : '';
+      const created = job.created_at ? new Date(job.created_at).toLocaleString('ko-KR') : '';
+      return `<div class="job-item">
+        <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+          <span style="font-size:16px;flex-shrink:0;">${em}</span>
+          <div style="min-width:0;">
+            <p style="font-size:13px;font-weight:500;color:#e8e3d8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(job.title||'제목 없음')}</p>
+            <p style="font-size:11px;color:#555;">${escapeHtml(job.series_name||'')} · ${created}</p>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+          <span style="font-size:11px;padding:3px 8px;border-radius:6px;background:#2a2a2c;color:${sc};">${st}</span>
+          ${ytBtn}
+        </div>
+      </div>`;
+    }).join('');
+  } catch {}
+}
+
+loadJobs();
+setInterval(loadJobs, 30000);
+</script>
+</body>
+</html>
