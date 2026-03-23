@@ -34,9 +34,10 @@ def generate_music(title: str, style: str, lyrics: str,
         "title": title,
         "style": style,
         "prompt": lyrics,
-        "vocalGender": "f",
         "callBackUrl": "https://webhook.site/aisence-callback",
     }
+    if not instrumental:
+        payload["vocalGender"] = "f"
 
     print(f"[1/3] 생성 요청 중: {title}")
     resp = requests.post(f"{BASE_URL}/generate", headers=HEADERS, json=payload)
