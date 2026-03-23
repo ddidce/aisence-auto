@@ -537,7 +537,7 @@ async function startGenerate() {
         title: finalTitle,
         genre: finalGenre,
         image_path: uploadedImagePath || null,
-        extra_tracks: 4,
+        extra_tracks: 9,
       })
     });
     if (!res.ok) { const err = await res.json(); throw new Error(err.detail||'서버 오류'); }

@@ -128,6 +128,7 @@ def main():
                         choices=["V4", "V4_5", "V4_5PLUS", "V4_5ALL", "V5"],
                         help="Suno 모델 버전")
     parser.add_argument("--instrumental", action="store_true", help="반주만 생성")
+    parser.add_argument("--output",       default=None,        help="저장 폴더 경로")
     parser.add_argument("--credits",      action="store_true", help="크레딧 잔액 확인")
     args = parser.parse_args()
 
@@ -138,6 +139,11 @@ def main():
     if args.credits:
         check_credits()
         return
+
+    if args.output:
+        global OUTPUT_DIR
+        OUTPUT_DIR = args.output
+        os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     task_id = generate_music(args.title, args.style, args.lyrics,
                               args.model, args.instrumental)

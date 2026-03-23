@@ -48,7 +48,7 @@ class GenerateRequest(BaseModel):
     title: str
     genre: str = "lofi"
     image_path: Optional[str] = None
-    extra_tracks: int = 4  # 샘플 승인 후 추가 생성할 배치 수 (1배치=2트랙)
+    extra_tracks: int = 9  # 샘플 승인 후 추가 생성할 배치 수 (1배치=2트랙)
 
 
 class SeriesRequest(BaseModel):
