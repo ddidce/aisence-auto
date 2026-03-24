@@ -900,6 +900,9 @@ async function loadJobs() {
       const ytBtn = job.youtube_url
         ? `<a href="${job.youtube_url}" target="_blank" style="background:#1f1f1f;color:#ff4444;border:1px solid #2a2a2c;text-decoration:none;font-size:12px;padding:5px 10px;border-radius:7px;">▶ 보기</a>`
         : '';
+      const resumeBtn = (job.status === 'error' || job.status === 'cancelled') && job.series_name
+        ? `<button onclick="resumeJob('${escapeHtml(job.series_name)}')" style="background:#1a1e2e;color:#a5b4fc;border:1px solid #6366f1;font-size:12px;padding:5px 10px;border-radius:7px;cursor:pointer;">↩ 재개</button>`
+        : '';
       const created = job.created_at ? new Date(job.created_at).toLocaleString('ko-KR') : '';
       return `<div class="job-item">
         <div style="display:flex;align-items:center;gap:10px;min-width:0;">
@@ -911,11 +914,37 @@ async function loadJobs() {
         </div>
         <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
           <span style="font-size:11px;padding:3px 8px;border-radius:6px;background:#2a2a2c;color:${sc};">${st}</span>
+          ${resumeBtn}
           ${ytBtn}
         </div>
       </div>`;
     }).join('');
   } catch {}
+}
+
+async function resumeJob(seriesName) {
+  const btn = document.getElementById('generate-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 재개 중...';
+  document.getElementById('log-box').innerHTML = '';
+  document.getElementById('result-card').style.display = 'none';
+  document.getElementById('sample-card').classList.remove('visible');
+  document.getElementById('track-order-card').classList.remove('visible');
+  resetSteps();
+
+  appendLog(`↩ 작업 재개: ${seriesName}`,
+    new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit', second:'2-digit'}));
+
+  try {
+    const res = await fetch(`/resume/${encodeURIComponent(seriesName)}`, {method: 'POST'});
+    if (!res.ok) { const err = await res.json(); throw new Error(err.detail || '재개 실패'); }
+    const {job_id} = await res.json();
+    currentJobId = job_id;
+    listenProgress(job_id);
+  } catch(e) {
+    appendLog(`❌ 재개 실패: ${e.message}`);
+    btn.disabled = false; btn.innerHTML = '✨ 생성 시작';
+  }
 }
 
 loadJobs();

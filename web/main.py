@@ -400,8 +400,9 @@ def push_message(job_id: str, msg: str):
         jobs[job_id]["messages"].append({"text": msg, "time": datetime.now().strftime("%H:%M:%S")})
 
 
-# ── Suno 한 배치 생성 (2트랙) ──────────────────────────────────────────────────
-async def generate_one_batch(job_id: str, series_dir: Path, track_title: str, concept: str, batch_num: int) -> list[str]:
+# ── Suno 한 배치 생성 (2트랙) — 자동 재시도 포함 ────────────────────────────
+async def generate_one_batch(job_id: str, series_dir: Path, track_title: str, concept: str, batch_num: int,
+                             max_retries: int = 2, retry_delay: int = 30) -> list[str]:
     loop = asyncio.get_event_loop()
     try:
         from scripts.suno_generate import generate_music, wait_for_result, download_mp3
@@ -412,16 +413,138 @@ async def generate_one_batch(job_id: str, series_dir: Path, track_title: str, co
     original = sg.OUTPUT_DIR
     sg.OUTPUT_DIR = str(series_dir)
 
-    try:
-        task_id = await loop.run_in_executor(None, lambda: generate_music(
-            title=track_title, style=concept, lyrics="", instrumental=True))
-        push_message(job_id, f"  → 배치 {batch_num} task: {task_id}")
-        tracks = await loop.run_in_executor(None, lambda: wait_for_result(task_id))
-        paths  = await loop.run_in_executor(None, lambda: download_mp3(tracks, track_title))
-    finally:
-        sg.OUTPUT_DIR = original
+    last_error = None
+    for attempt in range(max_retries + 1):
+        try:
+            task_id = await loop.run_in_executor(None, lambda: generate_music(
+                title=track_title, style=concept, lyrics="", instrumental=True))
+            push_message(job_id, f"  → 배치 {batch_num} task: {task_id}")
+            tracks = await loop.run_in_executor(None, lambda: wait_for_result(task_id))
+            paths  = await loop.run_in_executor(None, lambda: download_mp3(tracks, track_title))
+            sg.OUTPUT_DIR = original
+            return paths
+        except Exception as e:
+            last_error = e
+            if attempt < max_retries:
+                push_message(job_id, f"  ⚠️ 배치 {batch_num} 실패 ({attempt+1}/{max_retries} 재시도) — {retry_delay}초 후 재시도...")
+                await asyncio.sleep(retry_delay)
+            else:
+                sg.OUTPUT_DIR = original
+                raise last_error
 
-    return paths
+
+# ── 메타데이터 저장/로드 ────────────────────────────────────────────────────────
+def save_job_meta(series_dir: Path, data: dict):
+    with open(series_dir / ".job_meta.json", "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def load_job_meta(series_dir: Path) -> dict | None:
+    p = series_dir / ".job_meta.json"
+    if not p.exists():
+        return None
+    with open(p, encoding="utf-8") as f:
+        return json.load(f)
+
+
+# ── 트랙 순서 지정 → 영상 → 업로드 공통 파이프라인 ────────────────────────────
+async def run_post_generation(job_id: str, series_dir: Path,
+                               title: str, concept: str, genre: str,
+                               image_path: str | None):
+    loop = asyncio.get_event_loop()
+
+    # ── 트랙 순서 지정 대기 ──────────────────────────────────────────────────────
+    track_list = sorted(glob.glob(str(series_dir / "*.mp3")))
+    jobs[job_id]["tracks"] = track_list
+    jobs[job_id]["status"] = "tracks_ready"
+    push_message(job_id, f"🎼 트랙 순서를 지정해주세요 ({len(track_list)}개)")
+
+    order_event = asyncio.Event()
+    order_events[job_id] = order_event
+    await order_event.wait()
+
+    ordered_tracks = jobs[job_id].get("ordered_tracks", track_list)
+    push_message(job_id, f"✅ 트랙 순서 확정 — {len(ordered_tracks)}개")
+    jobs[job_id]["status"] = "running"
+
+    # ── 영상 제작 ─────────────────────────────────────────────────────────────────
+    if not image_path:
+        png_files = glob.glob(str(series_dir / "*.png"))
+        image_path = png_files[0] if png_files else None
+
+    video_path = None
+    series_name = series_dir.name
+
+    if image_path:
+        push_message(job_id, "🎬 영상 제작 중... (MoviePy)")
+
+        def _make_video():
+            from moviepy import AudioFileClip, ImageClip, concatenate_audioclips
+            from moviepy.audio.fx import AudioFadeIn, AudioFadeOut
+            clips    = [AudioFileClip(p) for p in ordered_tracks]
+            combined = concatenate_audioclips(clips)
+            combined = combined.with_effects([AudioFadeIn(2.0), AudioFadeOut(4.0)])
+            video    = ImageClip(image_path).with_duration(combined.duration).with_audio(combined)
+            out      = str(series_dir / f"{series_name}_플레이리스트.mp4")
+            video.write_videofile(out, fps=24, codec="libx264", audio_codec="aac", logger=None)
+            for c in clips:
+                c.close()
+            return out
+
+        video_path = await loop.run_in_executor(None, _make_video)
+        push_message(job_id, f"  → 영상 저장: {Path(video_path).name}")
+    else:
+        push_message(job_id, "  ⚠️ 이미지 없음 — 영상 제작 생략")
+
+    # ── 미리보기 대기 ─────────────────────────────────────────────────────────────
+    if video_path:
+        thumb_url = None
+        if image_path and image_path.startswith(str(UPLOAD_DIR)):
+            thumb_url = f"/uploads/{Path(image_path).name}"
+
+        jobs[job_id]["preview"] = {
+            "title":         title,
+            "description":   generate_description(concept, genre),
+            "thumbnail_url": thumb_url,
+        }
+        jobs[job_id]["status"] = "preview_ready"
+        push_message(job_id, "👁️ 미리보기 준비됨 — 확인 후 업로드해주세요")
+
+        event = asyncio.Event()
+        confirm_events[job_id] = event
+        await event.wait()
+
+        if jobs[job_id].get("cancelled"):
+            push_message(job_id, "⛔ 업로드 취소됨")
+            jobs[job_id]["status"] = "cancelled"
+            return
+
+    # ── 유튜브 업로드 ─────────────────────────────────────────────────────────────
+    youtube_url = None
+    if video_path and os.path.exists(video_path):
+        push_message(job_id, "📤 유튜브 업로드 중...")
+
+        def _upload():
+            try:    from scripts.upload_youtube import upload_video
+            except: from upload_youtube import upload_video
+            vid_id = upload_video(
+                video_path=video_path,
+                title=title,
+                genre=genre,
+                description=generate_description(concept, genre),
+                thumbnail_path=image_path if image_path and os.path.exists(image_path) else None,
+            )
+            return f"https://www.youtube.com/watch?v={vid_id}"
+
+        try:
+            youtube_url = await loop.run_in_executor(None, _upload)
+            push_message(job_id, "  → 업로드 완료!")
+        except Exception as e:
+            push_message(job_id, f"  ⚠️ 업로드 실패: {e}")
+
+    jobs[job_id]["status"]      = "done"
+    jobs[job_id]["youtube_url"] = youtube_url
+    push_message(job_id, f"✅ 완료!{' ' + youtube_url if youtube_url else ''}")
 
 
 # ── 파이프라인 ─────────────────────────────────────────────────────────────────
@@ -442,6 +565,17 @@ async def run_pipeline(job_id: str, req: GenerateRequest):
         if str(Path(image_path).resolve()) != str(dest.resolve()):
             shutil.copy2(image_path, dest)
         image_path = str(dest)
+
+    # ── 메타데이터 저장 (재개를 위해) ───────────────────────────────────────────
+    save_job_meta(series_dir, {
+        "series_name":  req.series_name,
+        "concept":      req.concept,
+        "title":        req.title,
+        "genre":        req.genre,
+        "extra_tracks": req.extra_tracks,
+        "target_count": (req.extra_tracks + 1) * 2,
+        "image_path":   image_path,
+    })
 
     try:
         all_mp3_paths = []
@@ -482,104 +616,114 @@ async def run_pipeline(job_id: str, req: GenerateRequest):
         track_titles = [
             f"{req.series_name}_트랙{i+1}" for i in range(req.extra_tracks)
         ]
+        failed_batches = 0
         for i, t_title in enumerate(track_titles, 2):
-            paths = await generate_one_batch(job_id, series_dir, t_title, req.concept, i)
-            all_mp3_paths.extend(paths)
-            push_message(job_id, f"  → 트랙 {i}/{req.extra_tracks+1} 완료 ({len(paths)}개)")
+            try:
+                paths = await generate_one_batch(job_id, series_dir, t_title, req.concept, i)
+                all_mp3_paths.extend(paths)
+                push_message(job_id, f"  → 트랙 {i}/{req.extra_tracks+1} 완료 ({len(paths)}개)")
+            except Exception as e:
+                failed_batches += 1
+                push_message(job_id, f"  ⚠️ 배치 {i} 최종 실패 — 스킵하고 계속 진행 ({e})")
 
-        push_message(job_id, f"  → 총 {len(all_mp3_paths)}개 MP3 생성 완료")
-
-        # ── 2.5 트랙 순서 지정 대기 ──────────────────────────────────────────────
-        track_list = sorted(glob.glob(str(series_dir / "*.mp3")))
-        jobs[job_id]["tracks"]  = track_list
-        jobs[job_id]["status"]  = "tracks_ready"
-        push_message(job_id, f"🎼 트랙 순서를 지정해주세요 ({len(track_list)}개)")
-
-        order_event = asyncio.Event()
-        order_events[job_id] = order_event
-        await order_event.wait()
-
-        ordered_tracks = jobs[job_id].get("ordered_tracks", track_list)
-        push_message(job_id, f"✅ 트랙 순서 확정 — {len(ordered_tracks)}개")
-        jobs[job_id]["status"] = "running"
-
-        # ── 3. 영상 제작 ─────────────────────────────────────────────────────────
-        video_path = None
-        if not image_path:
-            png_files = glob.glob(str(series_dir / "*.png"))
-            image_path = png_files[0] if png_files else None
-
-        if image_path:
-            push_message(job_id, "🎬 영상 제작 중... (MoviePy)")
-
-            def _make_video():
-                from moviepy import AudioFileClip, ImageClip, concatenate_audioclips
-                from moviepy.audio.fx import AudioFadeIn, AudioFadeOut
-                mp3s = ordered_tracks
-                clips = [AudioFileClip(p) for p in mp3s]
-                combined = concatenate_audioclips(clips)
-                combined = combined.with_effects([AudioFadeIn(2.0), AudioFadeOut(4.0)])
-                video = ImageClip(image_path).with_duration(combined.duration).with_audio(combined)
-                out = str(series_dir / f"{req.series_name}_플레이리스트.mp4")
-                video.write_videofile(out, fps=24, codec="libx264", audio_codec="aac", logger=None)
-                for c in clips:
-                    c.close()
-                return out
-
-            video_path = await loop.run_in_executor(None, _make_video)
-            push_message(job_id, f"  → 영상 저장: {Path(video_path).name}")
+        if failed_batches:
+            push_message(job_id, f"  ⚠️ {failed_batches}개 배치 실패, {len(all_mp3_paths)}개로 계속 진행")
         else:
-            push_message(job_id, "  ⚠️ 이미지 없음 — 영상 제작 생략")
+            push_message(job_id, f"  → 총 {len(all_mp3_paths)}개 MP3 생성 완료")
 
-        # ── 4. 미리보기 대기 ─────────────────────────────────────────────────────
-        if video_path:
-            thumbnail_url = None
-            if req.image_path and os.path.exists(req.image_path):
-                thumbnail_url = f"/uploads/{Path(req.image_path).name}"
+        if not all_mp3_paths:
+            raise RuntimeError("생성된 MP3가 없습니다. 나중에 다시 시도해주세요.")
 
-            jobs[job_id]["preview"] = {
-                "title":         req.title,
-                "description":   generate_description(req.concept, req.genre),
-                "thumbnail_url": thumbnail_url,
-            }
-            jobs[job_id]["status"] = "preview_ready"
-            push_message(job_id, "👁️ 미리보기 준비됨 — 확인 후 업로드해주세요")
+        await run_post_generation(job_id, series_dir,
+                                   req.title, req.concept, req.genre, image_path)
+
+    except Exception as e:
+        jobs[job_id]["status"] = "error"
+        jobs[job_id]["error"]  = str(e)
+        push_message(job_id, f"❌ 오류: {e}")
+
+
+# ── 재개 파이프라인 ────────────────────────────────────────────────────────────
+async def run_resume_pipeline(job_id: str, series_dir: Path, meta: dict):
+    jobs[job_id]["status"]     = "running"
+    jobs[job_id]["series_dir"] = str(series_dir)
+
+    series_name  = meta["series_name"]
+    concept      = meta["concept"]
+    title        = meta["title"]
+    genre        = meta["genre"]
+    extra_tracks = meta.get("extra_tracks", 9)
+    target_count = meta.get("target_count", (extra_tracks + 1) * 2)
+    image_path   = meta.get("image_path")
+
+    # 이미지 경로 유효성 확인 (없으면 폴더 내 PNG 검색)
+    if not image_path or not os.path.exists(image_path):
+        png_files  = glob.glob(str(series_dir / "*.png"))
+        image_path = png_files[0] if png_files else None
+
+    try:
+        # ── 저장된 콘셉트 표시 ───────────────────────────────────────────────────
+        push_message(job_id, f"📋 이전 작업 콘셉트: {concept}")
+        push_message(job_id, f"🎵 장르: {genre}  |  제목: {title}")
+
+        # ── 재개 샘플 생성 (파일명 충돌 방지: _재개샘플) ────────────────────────
+        push_message(job_id, "🎵 샘플 생성 중... (Suno AI)")
+        resume_sample_title = f"{series_name}_재개샘플"
+        sample_paths = await generate_one_batch(job_id, series_dir, resume_sample_title, concept, 0)
+
+        if not sample_paths:
+            raise RuntimeError("샘플 MP3 다운로드 실패")
+
+        # 샘플 승인 루프
+        while True:
+            jobs[job_id]["sample_path"] = sample_paths[0]
+            jobs[job_id]["status"] = "sample_ready"
+            push_message(job_id, "👂 샘플 준비됨 — 들어보고 확인해주세요")
 
             event = asyncio.Event()
-            confirm_events[job_id] = event
+            sample_events[job_id] = event
             await event.wait()
 
-            if jobs[job_id].get("cancelled"):
-                push_message(job_id, "⛔ 업로드 취소됨")
-                jobs[job_id]["status"] = "cancelled"
-                return
+            if jobs[job_id].get("sample_approved"):
+                push_message(job_id, "✅ 샘플 승인 — 나머지 음악 생성 시작")
+                jobs[job_id]["status"] = "running"
+                break
+            else:
+                push_message(job_id, "🔄 샘플 다시 생성 중...")
+                jobs[job_id]["status"] = "running"
+                sample_paths = await generate_one_batch(job_id, series_dir, resume_sample_title, concept, 0)
+                if not sample_paths:
+                    raise RuntimeError("재생성 실패")
 
-        # ── 5. 유튜브 업로드 ─────────────────────────────────────────────────────
-        youtube_url = None
-        if video_path and os.path.exists(video_path):
-            push_message(job_id, "📤 유튜브 업로드 중...")
+        # ── 기존 트랙 확인 후 나머지 생성 ───────────────────────────────────────
+        existing_mp3s = sorted(glob.glob(str(series_dir / "*.mp3")))
+        push_message(job_id, f"📁 현재 트랙: {len(existing_mp3s)}개 / 목표 {target_count}개")
 
-            def _upload():
-                try:    from scripts.upload_youtube import upload_video
-                except: from upload_youtube import upload_video
-                vid_id = upload_video(
-                    video_path=video_path,
-                    title=req.title,
-                    genre=req.genre,
-                    description=generate_description(req.concept, req.genre),
-                    thumbnail_path=image_path if image_path and os.path.exists(image_path) else None,
-                )
-                return f"https://www.youtube.com/watch?v={vid_id}"
+        remaining = max(0, target_count - len(existing_mp3s))
+        remaining_batches = remaining // 2
 
-            try:
-                youtube_url = await loop.run_in_executor(None, _upload)
-                push_message(job_id, "  → 업로드 완료!")
-            except Exception as e:
-                push_message(job_id, f"  ⚠️ 업로드 실패: {e}")
+        if remaining_batches > 0:
+            push_message(job_id, f"🎵 나머지 음악 생성 중... ({remaining_batches}배치)")
+            failed = 0
+            for i in range(remaining_batches):
+                batch_num   = len(existing_mp3s) // 2 + i + 1
+                track_title = f"{series_name}_재개트랙{batch_num}"
+                try:
+                    paths = await generate_one_batch(job_id, series_dir, track_title, concept, batch_num)
+                    existing_mp3s.extend(paths)
+                    push_message(job_id, f"  → 배치 {i+1}/{remaining_batches} 완료 ({len(paths)}개)")
+                except Exception as e:
+                    failed += 1
+                    push_message(job_id, f"  ⚠️ 배치 {i+1} 실패 — 스킵 ({e})")
+            if failed:
+                push_message(job_id, f"  ⚠️ {failed}개 배치 실패, {len(existing_mp3s)}개로 계속 진행")
+        else:
+            push_message(job_id, f"  → 이미 모든 트랙 보유 ({len(existing_mp3s)}개) — 트랙 순서 지정으로 이동")
 
-        jobs[job_id]["status"]      = "done"
-        jobs[job_id]["youtube_url"] = youtube_url
-        push_message(job_id, f"✅ 완료!{' ' + youtube_url if youtube_url else ''}")
+        if not existing_mp3s:
+            raise RuntimeError("재개할 MP3가 없습니다.")
+
+        await run_post_generation(job_id, series_dir, title, concept, genre, image_path)
 
     except Exception as e:
         jobs[job_id]["status"] = "error"
@@ -615,6 +759,25 @@ async def generate(req: GenerateRequest, background_tasks: BackgroundTasks):
         "created_at": datetime.now().isoformat(),
     }
     background_tasks.add_task(run_pipeline, job_id, req)
+    return {"job_id": job_id}
+
+
+@app.post("/resume/{series_name}")
+async def resume_job(series_name: str, background_tasks: BackgroundTasks):
+    series_dir = MUSIC_FILE_ROOT / series_name
+    meta = load_job_meta(series_dir)
+    if not meta:
+        raise HTTPException(404, "메타데이터 없음 — 처음부터 다시 생성해주세요.")
+
+    job_id = str(uuid.uuid4())
+    jobs[job_id] = {
+        "status": "pending", "messages": [], "youtube_url": None,
+        "video_path": None, "sample_path": None, "preview": None,
+        "error": None, "title": meta.get("title", series_name),
+        "series_name": series_name,
+        "created_at": datetime.now().isoformat(),
+    }
+    background_tasks.add_task(run_resume_pipeline, job_id, series_dir, meta)
     return {"job_id": job_id}
 
 
