@@ -765,9 +765,23 @@ async def generate(req: GenerateRequest, background_tasks: BackgroundTasks):
 @app.post("/resume/{series_name}")
 async def resume_job(series_name: str, background_tasks: BackgroundTasks):
     series_dir = MUSIC_FILE_ROOT / series_name
+    if not series_dir.exists():
+        raise HTTPException(404, f"시리즈 폴더 없음: {series_name}")
+
     meta = load_job_meta(series_dir)
     if not meta:
-        raise HTTPException(404, "메타데이터 없음 — 처음부터 다시 생성해주세요.")
+        # 메타데이터 없으면 시리즈명으로 자동 재구성
+        auto = analyze_series(series_name)
+        meta = {
+            "series_name":  series_name,
+            "concept":      auto["concept"],
+            "title":        auto["title"],
+            "genre":        auto["genre"],
+            "extra_tracks": 9,
+            "target_count": 20,
+            "image_path":   None,
+        }
+        save_job_meta(series_dir, meta)
 
     job_id = str(uuid.uuid4())
     jobs[job_id] = {
