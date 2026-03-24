@@ -39,6 +39,7 @@ app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 jobs: dict[str, dict] = {}
 sample_events:  dict[str, asyncio.Event] = {}
 confirm_events: dict[str, asyncio.Event] = {}
+order_events:   dict[str, asyncio.Event] = {}
 
 
 # ── 요청 모델 ──────────────────────────────────────────────────────────────────
@@ -58,6 +59,10 @@ class SeriesRequest(BaseModel):
 class TitleRequest(BaseModel):
     concept: str
     genre: str = "lofi"
+
+
+class TrackOrderRequest(BaseModel):
+    ordered_paths: list[str]
 
 
 # ── 시리즈명 분석 ──────────────────────────────────────────────────────────────
@@ -484,6 +489,20 @@ async def run_pipeline(job_id: str, req: GenerateRequest):
 
         push_message(job_id, f"  → 총 {len(all_mp3_paths)}개 MP3 생성 완료")
 
+        # ── 2.5 트랙 순서 지정 대기 ──────────────────────────────────────────────
+        track_list = sorted(glob.glob(str(series_dir / "*.mp3")))
+        jobs[job_id]["tracks"]  = track_list
+        jobs[job_id]["status"]  = "tracks_ready"
+        push_message(job_id, f"🎼 트랙 순서를 지정해주세요 ({len(track_list)}개)")
+
+        order_event = asyncio.Event()
+        order_events[job_id] = order_event
+        await order_event.wait()
+
+        ordered_tracks = jobs[job_id].get("ordered_tracks", track_list)
+        push_message(job_id, f"✅ 트랙 순서 확정 — {len(ordered_tracks)}개")
+        jobs[job_id]["status"] = "running"
+
         # ── 3. 영상 제작 ─────────────────────────────────────────────────────────
         video_path = None
         if not image_path:
@@ -496,7 +515,7 @@ async def run_pipeline(job_id: str, req: GenerateRequest):
             def _make_video():
                 from moviepy import AudioFileClip, ImageClip, concatenate_audioclips
                 from moviepy.audio.fx import AudioFadeIn, AudioFadeOut
-                mp3s = sorted(glob.glob(str(series_dir / "*.mp3")))
+                mp3s = ordered_tracks
                 clips = [AudioFileClip(p) for p in mp3s]
                 combined = concatenate_audioclips(clips)
                 combined = combined.with_effects([AudioFadeIn(2.0), AudioFadeOut(4.0)])
@@ -630,6 +649,29 @@ async def retry_sample(job_id: str):
     return {"ok": True}
 
 
+@app.get("/track-audio/{job_id}/{filename}")
+async def get_track_audio(job_id: str, filename: str):
+    if job_id not in jobs:
+        raise HTTPException(404)
+    series_dir = jobs[job_id].get("series_dir")
+    if not series_dir:
+        raise HTTPException(404)
+    path = Path(series_dir) / filename
+    if not path.exists() or path.suffix.lower() != ".mp3":
+        raise HTTPException(404, "파일 없음")
+    return FileResponse(str(path), media_type="audio/mpeg")
+
+
+@app.post("/set-track-order/{job_id}")
+async def set_track_order(job_id: str, req: TrackOrderRequest):
+    if job_id not in jobs:
+        raise HTTPException(404)
+    jobs[job_id]["ordered_tracks"] = req.ordered_paths
+    if job_id in order_events:
+        order_events[job_id].set()
+    return {"ok": True}
+
+
 @app.post("/confirm-upload/{job_id}")
 async def confirm_upload(job_id: str):
     if job_id not in jobs:
@@ -671,6 +713,18 @@ async def progress(job_id: str):
                 payload = json.dumps({"type": "sample_ready", "job_id": job_id}, ensure_ascii=False)
                 yield f"data: {payload}\n\n"
                 while jobs.get(job_id, {}).get("status") == "sample_ready":
+                    await asyncio.sleep(0.5)
+                continue
+
+            if status == "tracks_ready":
+                tracks = job.get("tracks", [])
+                payload = json.dumps({
+                    "type": "tracks_ready",
+                    "job_id": job_id,
+                    "tracks": [{"path": p, "name": Path(p).stem} for p in tracks],
+                }, ensure_ascii=False)
+                yield f"data: {payload}\n\n"
+                while jobs.get(job_id, {}).get("status") == "tracks_ready":
                     await asyncio.sleep(0.5)
                 continue
 

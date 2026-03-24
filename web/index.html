@@ -59,6 +59,65 @@
     }
     #sample-card.visible { display: block; }
 
+    /* 트랙 순서 카드 */
+    #track-order-card {
+      background: #1a1e2e; border: 1px solid #6366f1; border-radius: 14px;
+      padding: 20px; display: none; animation: fadeInUp .4s ease;
+    }
+    #track-order-card.visible { display: block; }
+
+    #track-list { list-style: none; padding: 0; margin: 12px 0; display: flex; flex-direction: column; gap: 6px; }
+    .track-item {
+      display: flex; align-items: center; gap: 10px;
+      background: #242436; border: 1px solid #3a3a5c; border-radius: 9px;
+      padding: 10px 14px; cursor: grab; user-select: none;
+      transition: background .15s, border-color .15s, transform .15s;
+    }
+    .track-item:active { cursor: grabbing; }
+    .track-item.dragging { opacity: .4; transform: scale(.98); }
+    .track-item.drag-over { border-color: #6366f1; background: rgba(99,102,241,.12); }
+    .track-num {
+      width: 24px; height: 24px; border-radius: 50%; background: #3a3a5c;
+      color: #888; font-size: 11px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .track-name { font-size: 13px; color: #c4c4f0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .drag-handle { color: #444; font-size: 16px; flex-shrink: 0; }
+    .track-play-btn {
+      width: 30px; height: 30px; border-radius: 50%; border: none; cursor: pointer; flex-shrink: 0;
+      background: #3a3a5c; color: #a5b4fc; font-size: 11px;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .15s, color .15s, transform .1s;
+    }
+    .track-play-btn:hover { background: #4f46e5; color: #fff; transform: scale(1.1); }
+    .track-play-btn.playing { background: #4f46e5; color: #fff; animation: pulse-indigo .9s ease-in-out infinite; }
+    @keyframes pulse-indigo {
+      0%,100% { box-shadow: 0 0 0 0 rgba(99,102,241,.5); }
+      50%      { box-shadow: 0 0 0 5px rgba(99,102,241,0); }
+    }
+    .track-item.now-playing { border-color: #6366f1; background: rgba(99,102,241,.1); }
+
+    /* 미니 플레이어 */
+    #mini-player {
+      background: #1a1a2e; border: 1px solid #4f46e5; border-radius: 10px;
+      padding: 10px 14px; margin-top: 8px; display: none;
+      align-items: center; gap: 10px;
+    }
+    #mini-player.visible { display: flex; }
+    #mini-player-title { font-size: 12px; color: #a5b4fc; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #mini-player-time  { font-size: 11px; color: #555; flex-shrink: 0; }
+    #mini-progress-wrap { flex: 1; height: 3px; background: #2a2a4c; border-radius: 2px; cursor: pointer; position: relative; }
+    #mini-progress-bar  { height: 100%; background: #6366f1; border-radius: 2px; width: 0%; transition: width .2s linear; }
+
+    .btn-confirm-order {
+      background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff;
+      border: none; border-radius: 10px; padding: 12px 20px;
+      font-size: 13px; font-weight: 600; cursor: pointer; width: 100%;
+      transition: opacity .2s, transform .15s;
+      margin-top: 8px;
+    }
+    .btn-confirm-order:hover { opacity: .9; transform: translateY(-1px); }
+
     audio { width: 100%; border-radius: 8px; margin: 12px 0; accent-color: #d97706; }
 
     .btn-approve {
@@ -255,21 +314,28 @@
         </div>
       </div>
       <div class="step-item">
-        <div class="step-icon waiting" id="step-video-icon">3</div>
+        <div class="step-icon waiting" id="step-order-icon">3</div>
+        <div>
+          <div class="step-label" id="step-order-label">트랙 순서 지정</div>
+          <div class="text-xs" style="color:#555;">드래그로 재생 순서 설정</div>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-icon waiting" id="step-video-icon">4</div>
         <div>
           <div class="step-label" id="step-video-label">영상 제작</div>
           <div class="text-xs" style="color:#555;">MoviePy — 이미지 + 음악 → MP4</div>
         </div>
       </div>
       <div class="step-item">
-        <div class="step-icon waiting" id="step-preview-icon">4</div>
+        <div class="step-icon waiting" id="step-preview-icon">5</div>
         <div>
           <div class="step-label" id="step-preview-label">미리보기 확인</div>
           <div class="text-xs" style="color:#555;">업로드 전 최종 확인</div>
         </div>
       </div>
       <div class="step-item">
-        <div class="step-icon waiting" id="step-upload-icon">5</div>
+        <div class="step-icon waiting" id="step-upload-icon">6</div>
         <div>
           <div class="step-label" id="step-upload-label">유튜브 업로드</div>
           <div class="text-xs" style="color:#555;">YouTube API — 자동 업로드</div>
@@ -289,6 +355,27 @@
         <button class="btn-retry" id="btn-retry-sample" onclick="retrySample()">🔄 다시 만들기</button>
         <button class="btn-approve" id="btn-approve-sample" onclick="approveSample()">✅ 좋아요! 나머지 만들기</button>
       </div>
+    </div>
+
+    <!-- 트랙 순서 카드 -->
+    <div id="track-order-card">
+      <div class="flex items-center gap-2 mb-1">
+        <span>🎼</span>
+        <span class="text-sm font-semibold" style="color:#a5b4fc;">트랙 순서 지정</span>
+      </div>
+      <p class="text-xs mb-3" style="color:#888;">드래그해서 재생 순서를 바꿀 수 있어요. 확정하면 이 순서대로 영상이 만들어져요.</p>
+      <ul id="track-list"></ul>
+      <!-- 미니 플레이어 -->
+      <div id="mini-player">
+        <span style="font-size:13px;flex-shrink:0;">🎵</span>
+        <span id="mini-player-title">—</span>
+        <div id="mini-progress-wrap" onclick="seekTrack(event)">
+          <div id="mini-progress-bar"></div>
+        </div>
+        <span id="mini-player-time">0:00</span>
+        <button onclick="stopTrack()" style="background:none;border:none;color:#555;cursor:pointer;font-size:15px;flex-shrink:0;" title="정지">■</button>
+      </div>
+      <button class="btn-confirm-order" onclick="confirmTrackOrder()">🎬 이 순서로 영상 만들기</button>
     </div>
 
     <!-- 실시간 로그 -->
@@ -450,8 +537,8 @@ async function handleImageFile(file) {
 }
 
 // ── 단계 상태 ────────────────────────────────────────────────────────────────
-const STEP_ICONS = {sample:'👂', music:'🎵', video:'🎬', preview:'👁️', upload:'📤'};
-const STEP_NUMS  = {sample:1, music:2, video:3, preview:4, upload:5};
+const STEP_ICONS = {sample:'👂', music:'🎵', order:'🎼', video:'🎬', preview:'👁️', upload:'📤'};
+const STEP_NUMS  = {sample:1, music:2, order:3, video:4, preview:5, upload:6};
 
 function setStep(key, state) {
   const icon  = document.getElementById(`step-${key}-icon`);
@@ -491,7 +578,9 @@ function appendLog(text, time) {
   else if (text.includes('👂 샘플 준비'))     setStep('sample','active');
   else if (text.includes('✅ 샘플 승인'))     { setStep('sample','done'); setStep('music','active'); }
   else if (text.includes('🎵 나머지'))        setStep('music','active');
-  else if (text.includes('🎬 영상 제작'))     { setStep('music','done'); setStep('video','active'); }
+  else if (text.includes('🎼 트랙 순서'))     { setStep('music','done'); setStep('order','active'); }
+  else if (text.includes('✅ 트랙 순서 확정')){ setStep('order','done'); setStep('video','active'); }
+  else if (text.includes('🎬 영상 제작'))     setStep('video','active');
   else if (text.includes('👁️ 미리보기'))     { setStep('video','done'); setStep('preview','active'); }
   else if (text.includes('📤 유튜브 업로드')) { setStep('preview','done'); setStep('upload','active'); }
   else if (text.includes('✅ 완료'))          setStep('upload','done');
@@ -523,6 +612,7 @@ async function startGenerate() {
   document.getElementById('log-box').innerHTML = '';
   document.getElementById('result-card').style.display = 'none';
   document.getElementById('sample-card').classList.remove('visible');
+  document.getElementById('track-order-card').classList.remove('visible');
   resetSteps();
 
   appendLog(`▶ 파이프라인 시작: ${seriesName}`,
@@ -561,12 +651,15 @@ function listenProgress(jobId) {
       appendLog(data.text, data.time);
     } else if (data.type === 'sample_ready') {
       showSamplePlayer(jobId);
+    } else if (data.type === 'tracks_ready') {
+      showTrackOrder(jobId, data.tracks);
     } else if (data.type === 'preview') {
       showPreviewModal(jobId, data);
     } else if (data.type === 'done') {
       es.close();
       btn.disabled = false; btn.innerHTML = '✨ 생성 시작';
       document.getElementById('sample-card').classList.remove('visible');
+      document.getElementById('track-order-card').classList.remove('visible');
       if (data.status==='done' && data.youtube_url) showResultCard(data.youtube_url);
       else if (data.status==='cancelled') appendLog('⛔ 업로드가 취소되었습니다.');
       else if (data.error) appendLog(`❌ 작업 실패: ${data.error}`);
@@ -602,6 +695,167 @@ async function retrySample() {
   document.getElementById('sample-audio').src = '';
   appendLog('🔄 샘플 다시 생성 요청...');
   await fetch(`/retry-sample/${jobId}`, {method:'POST'});
+}
+
+// ── 트랙 순서 + 미니 플레이어 ────────────────────────────────────────────────
+let trackOrderJobId = null;
+let dragSrcEl = null;
+const trackAudio = new Audio();
+let currentPlayBtn = null;
+let currentPlayLi  = null;
+
+// 재생/일시정지 토글
+function toggleTrack(btn, filePath, jobId, trackName) {
+  const filename = filePath.split(/[\\/]/).pop();
+  const src = `/track-audio/${jobId}/${encodeURIComponent(filename)}`;
+
+  if (currentPlayBtn === btn && !trackAudio.paused) {
+    // 이미 재생 중 → 일시정지
+    trackAudio.pause();
+    btn.textContent = '▶';
+    btn.classList.remove('playing');
+    return;
+  }
+
+  // 다른 트랙이 재생 중이면 초기화
+  if (currentPlayBtn && currentPlayBtn !== btn) {
+    currentPlayBtn.textContent = '▶';
+    currentPlayBtn.classList.remove('playing');
+    if (currentPlayLi) currentPlayLi.classList.remove('now-playing');
+  }
+
+  // 같은 트랙 일시정지 후 재개
+  if (currentPlayBtn === btn && trackAudio.paused) {
+    trackAudio.play();
+    btn.textContent = '⏸';
+    btn.classList.add('playing');
+    return;
+  }
+
+  // 새 트랙 재생
+  trackAudio.src = src;
+  trackAudio.play();
+  btn.textContent = '⏸';
+  btn.classList.add('playing');
+  currentPlayBtn = btn;
+  currentPlayLi  = btn.closest('.track-item');
+  if (currentPlayLi) currentPlayLi.classList.add('now-playing');
+
+  // 미니 플레이어 표시
+  document.getElementById('mini-player-title').textContent = trackName;
+  document.getElementById('mini-player').classList.add('visible');
+}
+
+// 오디오 이벤트
+trackAudio.addEventListener('timeupdate', () => {
+  if (!trackAudio.duration) return;
+  const pct = (trackAudio.currentTime / trackAudio.duration) * 100;
+  document.getElementById('mini-progress-bar').style.width = pct + '%';
+  const t = Math.floor(trackAudio.currentTime);
+  document.getElementById('mini-player-time').textContent =
+    `${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`;
+});
+
+trackAudio.addEventListener('ended', () => {
+  if (currentPlayBtn) { currentPlayBtn.textContent = '▶'; currentPlayBtn.classList.remove('playing'); }
+  if (currentPlayLi)  currentPlayLi.classList.remove('now-playing');
+  currentPlayBtn = null; currentPlayLi = null;
+  document.getElementById('mini-progress-bar').style.width = '0%';
+  document.getElementById('mini-player-time').textContent = '0:00';
+});
+
+function stopTrack() {
+  trackAudio.pause();
+  trackAudio.currentTime = 0;
+  if (currentPlayBtn) { currentPlayBtn.textContent = '▶'; currentPlayBtn.classList.remove('playing'); }
+  if (currentPlayLi)  currentPlayLi.classList.remove('now-playing');
+  currentPlayBtn = null; currentPlayLi = null;
+  document.getElementById('mini-player').classList.remove('visible');
+}
+
+function seekTrack(e) {
+  if (!trackAudio.duration) return;
+  const rect = e.currentTarget.getBoundingClientRect();
+  const pct  = (e.clientX - rect.left) / rect.width;
+  trackAudio.currentTime = pct * trackAudio.duration;
+}
+
+function showTrackOrder(jobId, tracks) {
+  trackOrderJobId = jobId;
+  stopTrack();
+  const ul = document.getElementById('track-list');
+  ul.innerHTML = '';
+
+  tracks.forEach((track, idx) => {
+    const li = document.createElement('li');
+    li.className = 'track-item';
+    li.draggable = true;
+    li.dataset.path = track.path;
+    li.innerHTML = `
+      <span class="drag-handle">⠿</span>
+      <button class="track-play-btn" title="재생/일시정지">▶</button>
+      <span class="track-num">${idx + 1}</span>
+      <span class="track-name">${escapeHtml(track.name)}</span>`;
+
+    // 재생 버튼 이벤트 (드래그 방해 안 하도록 버블 막기)
+    const playBtn = li.querySelector('.track-play-btn');
+    playBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      toggleTrack(playBtn, track.path, jobId, track.name);
+    });
+
+    // 드래그 이벤트
+    li.addEventListener('dragstart', e => {
+      dragSrcEl = li;
+      li.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    li.addEventListener('dragend', () => {
+      li.classList.remove('dragging');
+      updateTrackNumbers();
+    });
+    li.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      document.querySelectorAll('.track-item').forEach(el => el.classList.remove('drag-over'));
+      li.classList.add('drag-over');
+    });
+    li.addEventListener('dragleave', () => li.classList.remove('drag-over'));
+    li.addEventListener('drop', e => {
+      e.preventDefault();
+      li.classList.remove('drag-over');
+      if (dragSrcEl && dragSrcEl !== li) {
+        const items = [...ul.querySelectorAll('.track-item')];
+        const srcIdx = items.indexOf(dragSrcEl);
+        const dstIdx = items.indexOf(li);
+        if (srcIdx < dstIdx) ul.insertBefore(dragSrcEl, li.nextSibling);
+        else ul.insertBefore(dragSrcEl, li);
+        updateTrackNumbers();
+      }
+    });
+    ul.appendChild(li);
+  });
+
+  document.getElementById('track-order-card').classList.add('visible');
+}
+
+function updateTrackNumbers() {
+  document.querySelectorAll('.track-item').forEach((li, idx) => {
+    li.querySelector('.track-num').textContent = idx + 1;
+  });
+}
+
+async function confirmTrackOrder() {
+  stopTrack();
+  const items = [...document.querySelectorAll('#track-list .track-item')];
+  const orderedPaths = items.map(li => li.dataset.path);
+  document.getElementById('track-order-card').classList.remove('visible');
+  appendLog(`🎼 트랙 순서 확정 — ${orderedPaths.length}개`);
+  await fetch(`/set-track-order/${trackOrderJobId}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ordered_paths: orderedPaths}),
+  });
 }
 
 // ── 미리보기 모달 ─────────────────────────────────────────────────────────────
