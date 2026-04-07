@@ -638,16 +638,22 @@ async def run_pipeline(job_id: str, req: GenerateRequest):
 
         # 샘플 승인 루프
         while True:
-            jobs[job_id]["sample_path"] = sample_paths[0]
+            jobs[job_id]["sample_path"]  = sample_paths[0]
+            jobs[job_id]["sample_paths"] = sample_paths
             jobs[job_id]["status"] = "sample_ready"
-            push_message(job_id, f"👂 샘플 준비됨 — 들어보고 확인해주세요")
+            push_message(job_id, f"👂 샘플 준비됨 — A/B 들어보고 선택해주세요")
 
             event = asyncio.Event()
             sample_events[job_id] = event
             await event.wait()
 
             if jobs[job_id].get("sample_approved"):
-                all_mp3_paths.extend(sample_paths)
+                idx = jobs[job_id].get("selected_track_index", 0)
+                selected = sample_paths[idx] if idx < len(sample_paths) else sample_paths[0]
+                all_mp3_paths.append(selected)
+                for i, p in enumerate(sample_paths):
+                    if i != idx and os.path.exists(p):
+                        os.remove(p)
                 push_message(job_id, "✅ 샘플 승인 — 나머지 음악 생성 시작")
                 break
             else:
@@ -675,18 +681,24 @@ async def run_pipeline(job_id: str, req: GenerateRequest):
 
             # 승인 루프
             while True:
-                jobs[job_id]["sample_path"] = track_paths[0]
+                jobs[job_id]["sample_path"]  = track_paths[0]
+                jobs[job_id]["sample_paths"] = track_paths
                 jobs[job_id]["status"] = "sample_ready"
                 jobs[job_id]["track_num"] = batch_num
                 jobs[job_id]["total_tracks"] = total_batches
-                push_message(job_id, f"👂 트랙 {batch_num}/{total_batches} 준비됨 — 들어보세요")
+                push_message(job_id, f"👂 트랙 {batch_num}/{total_batches} 준비됨 — A/B 선택해주세요")
 
                 event = asyncio.Event()
                 sample_events[job_id] = event
                 await event.wait()
 
                 if jobs[job_id].get("sample_approved"):
-                    all_mp3_paths.extend(track_paths)
+                    idx = jobs[job_id].get("selected_track_index", 0)
+                    selected = track_paths[idx] if idx < len(track_paths) else track_paths[0]
+                    all_mp3_paths.append(selected)
+                    for i, p in enumerate(track_paths):
+                        if i != idx and os.path.exists(p):
+                            os.remove(p)
                     push_message(job_id, f"✅ 트랙 {batch_num} 승인")
                     break
                 else:
@@ -901,21 +913,26 @@ async def resume_job(series_name: str, background_tasks: BackgroundTasks):
 
 
 @app.get("/sample/{job_id}")
-async def get_sample(job_id: str):
-    """샘플 오디오 파일 스트리밍"""
+async def get_sample(job_id: str, index: int = 0):
+    """샘플 오디오 파일 스트리밍 (index=0: A버전, index=1: B버전)"""
     if job_id not in jobs:
         raise HTTPException(404)
-    path = jobs[job_id].get("sample_path")
-    if not path or not os.path.exists(path):
+    paths = jobs[job_id].get("sample_paths") or []
+    if not paths:
+        p = jobs[job_id].get("sample_path")
+        if p:
+            paths = [p]
+    if not paths or index >= len(paths) or not paths[index] or not os.path.exists(paths[index]):
         raise HTTPException(404, "샘플 파일 없음")
-    return FileResponse(path, media_type="audio/mpeg")
+    return FileResponse(paths[index], media_type="audio/mpeg")
 
 
 @app.post("/approve-sample/{job_id}")
-async def approve_sample(job_id: str):
+async def approve_sample(job_id: str, selected_index: int = 0):
     if job_id not in jobs:
         raise HTTPException(404)
     jobs[job_id]["sample_approved"] = True
+    jobs[job_id]["selected_track_index"] = selected_index
     if job_id in sample_events:
         sample_events[job_id].set()
     return {"ok": True}
@@ -1013,6 +1030,7 @@ async def progress(job_id: str):
                     "job_id": job_id,
                     "track_num": job.get("track_num", 1),
                     "total_tracks": job.get("total_tracks", 1),
+                    "track_count": len(job.get("sample_paths") or [job.get("sample_path")]),
                 }, ensure_ascii=False)
                 yield f"data: {payload}\n\n"
                 while jobs.get(job_id, {}).get("status") == "sample_ready":

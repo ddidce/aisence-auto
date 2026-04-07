@@ -118,8 +118,6 @@ def _sanitize(name: str) -> str:
 
 
 def download_mp3(tracks: list[dict], title: str) -> list[str]:
-    # Suno는 배치당 2개 변형을 생성하지만 제목 다양성을 위해 첫 번째만 사용
-    tracks = tracks[:1]
     print(f"[3/3] mp3 다운로드 중... ({len(tracks)}개 트랙)")
     paths = []
 

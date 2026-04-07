@@ -91,11 +91,38 @@
     }
     .track-play-btn:hover { background: #4f46e5; color: #fff; transform: scale(1.1); }
     .track-play-btn.playing { background: #4f46e5; color: #fff; animation: pulse-indigo .9s ease-in-out infinite; }
+    .track-checkbox {
+      width: 15px; height: 15px; flex-shrink: 0; cursor: pointer;
+      accent-color: #ef4444; border-radius: 3px;
+    }
+    .btn-track-action {
+      border: none; border-radius: 8px; padding: 8px 12px;
+      font-size: 12px; font-weight: 500; cursor: pointer; flex: 1;
+      transition: opacity .2s, transform .15s;
+    }
+    .btn-delete-tracks {
+      background: rgba(239,68,68,.15); color: #ef4444; border: 1px solid rgba(239,68,68,.3);
+    }
+    .btn-delete-tracks:hover { background: rgba(239,68,68,.25); }
+    .btn-add-tracks {
+      background: rgba(99,102,241,.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,.3);
+    }
+    .btn-add-tracks:hover:not(:disabled) { background: rgba(99,102,241,.25); }
+    .btn-add-tracks:disabled { opacity: .5; cursor: not-allowed; }
     @keyframes pulse-indigo {
       0%,100% { box-shadow: 0 0 0 0 rgba(99,102,241,.5); }
       50%      { box-shadow: 0 0 0 5px rgba(99,102,241,0); }
     }
     .track-item.now-playing { border-color: #6366f1; background: rgba(99,102,241,.1); }
+
+    /* 모드 토글 */
+    .mode-btn {
+      flex: 1; padding: 10px; border-radius: 10px; font-size: 13px; font-weight: 600;
+      border: 1px solid #3a3a3c; background: #2a2a2c; color: #666; cursor: pointer;
+      transition: all .2s;
+    }
+    .mode-btn:hover { border-color: #555; color: #aaa; }
+    .mode-btn.active-mode { background: rgba(217,119,6,.15); border-color: #d97706; color: #d97706; }
 
     /* 미니 플레이어 */
     #mini-player {
@@ -273,6 +300,31 @@
       </select>
     </div>
 
+    <!-- 모드 선택 + 언어 선택 -->
+    <div class="mb-4">
+      <div class="section-label">생성 모드</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <button id="btn-instrumental" class="mode-btn active-mode" onclick="setMode('instrumental')">🎹 반주만 (Instrumental)</button>
+        <button id="btn-vocal" class="mode-btn" onclick="setMode('vocal')">🎤 노래 포함 (Vocal)</button>
+      </div>
+      <div id="lang-section" style="display:none;">
+        <select id="pv-lang" class="aisence-input">
+          <option value="English">🇺🇸 English</option>
+          <option value="Korean">🇰🇷 한국어</option>
+          <option value="Japanese">🇯🇵 日本語</option>
+          <option value="Spanish">🇪🇸 Español</option>
+          <option value="French">🇫🇷 Français</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- 가사 입력 (노래 모드) -->
+    <div id="lyrics-section" class="mb-4" style="display:none;">
+      <div class="section-label">가사 <span style="color:#555;font-weight:400;text-transform:none;letter-spacing:0;">(비워두면 Suno AI가 자동 생성)</span></div>
+      <textarea id="pv-lyrics" class="aisence-input resize-none" rows="6"
+        placeholder="여기에 가사를 입력하세요.&#10;비워두면 Suno AI가 분위기에 맞는 가사를 자동으로 만들어줍니다."></textarea>
+    </div>
+
     <!-- 배경 이미지 -->
     <div class="mb-6">
       <div class="section-label">배경 이미지</div>
@@ -349,11 +401,21 @@
         <span>👂</span>
         <span class="text-sm font-semibold" style="color:#22c55e;">샘플 생성 완료 — 들어보세요!</span>
       </div>
-      <p class="text-xs mb-2" style="color:#888;">이 느낌으로 나머지 음악도 만들게요. 마음에 드시나요?</p>
-      <audio id="sample-audio" controls></audio>
+      <p class="text-xs mb-2" id="sample-card-desc" style="color:#888;">A/B 두 버전을 들어보고 마음에 드는 걸 선택하세요.</p>
+      <!-- 버전 A -->
+      <div class="mb-3">
+        <div class="text-xs mb-1" style="color:#aaa;">🅐 버전 A</div>
+        <audio id="sample-audio-0" controls style="width:100%;height:36px;"></audio>
+        <button class="btn-approve" id="btn-select-0" onclick="approveSample(0)" style="width:100%;margin-top:6px;font-size:13px;padding:8px;">✅ A 선택</button>
+      </div>
+      <!-- 버전 B -->
+      <div class="mb-3" id="sample-track-b">
+        <div class="text-xs mb-1" style="color:#aaa;">🅑 버전 B</div>
+        <audio id="sample-audio-1" controls style="width:100%;height:36px;"></audio>
+        <button class="btn-approve" id="btn-select-1" onclick="approveSample(1)" style="width:100%;margin-top:6px;font-size:13px;padding:8px;">✅ B 선택</button>
+      </div>
       <div class="flex gap-2 mt-1">
-        <button class="btn-retry" id="btn-retry-sample" onclick="retrySample()">🔄 다시 만들기</button>
-        <button class="btn-approve" id="btn-approve-sample" onclick="approveSample()">✅ 좋아요! 나머지 만들기</button>
+        <button class="btn-retry" id="btn-retry-sample" onclick="retrySample()">🔄 둘 다 다시 만들기</button>
       </div>
     </div>
 
@@ -365,6 +427,11 @@
       </div>
       <p class="text-xs mb-3" style="color:#888;">드래그해서 재생 순서를 바꿀 수 있어요. 확정하면 이 순서대로 영상이 만들어져요.</p>
       <ul id="track-list"></ul>
+      <!-- 트랙 액션 버튼 -->
+      <div class="flex gap-2 mt-1 mb-2">
+        <button class="btn-track-action btn-delete-tracks" onclick="deleteSelectedTracks()">🗑 선택 삭제</button>
+        <button id="btn-add-tracks" class="btn-track-action btn-add-tracks" onclick="addMoreTracks()">➕ 음악 추가</button>
+      </div>
       <!-- 미니 플레이어 -->
       <div id="mini-player">
         <span style="font-size:13px;flex-shrink:0;">🎵</span>
@@ -450,6 +517,15 @@ let uploadedImagePath = null;
 let uploadedImageUrl  = null;
 let autoData = { concept:'', genre:'lofi', title:'' };
 let debounceTimer = null;
+let isInstrumental = true;
+
+function setMode(mode) {
+  isInstrumental = (mode === 'instrumental');
+  document.getElementById('btn-instrumental').classList.toggle('active-mode', isInstrumental);
+  document.getElementById('btn-vocal').classList.toggle('active-mode', !isInstrumental);
+  document.getElementById('lyrics-section').style.display = isInstrumental ? 'none' : 'block';
+  document.getElementById('lang-section').style.display   = isInstrumental ? 'none' : 'block';
+}
 
 // ── 서버 상태 ────────────────────────────────────────────────────────────────
 async function checkServer() {
@@ -619,6 +695,8 @@ async function startGenerate() {
     new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
 
   try {
+    const lyrics   = isInstrumental ? '' : document.getElementById('pv-lyrics').value.trim();
+    const language = isInstrumental ? '' : (document.getElementById('pv-lang').value || 'English');
     const res = await fetch('/generate', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
@@ -628,6 +706,9 @@ async function startGenerate() {
         genre: finalGenre,
         image_path: uploadedImagePath || null,
         extra_tracks: 9,
+        instrumental: isInstrumental,
+        lyrics: lyrics,
+        language: language,
       })
     });
     if (!res.ok) { const err = await res.json(); throw new Error(err.detail||'서버 오류'); }
@@ -650,9 +731,12 @@ function listenProgress(jobId) {
     if (data.type === 'log') {
       appendLog(data.text, data.time);
     } else if (data.type === 'sample_ready') {
-      showSamplePlayer(jobId);
+      showSamplePlayer(jobId, data.track_num || 1, data.total_tracks || 1, data.track_count || 1);
     } else if (data.type === 'tracks_ready') {
       showTrackOrder(jobId, data.tracks);
+    } else if (data.type === 'tracks_added') {
+      appendTracksToList(jobId, data.tracks);
+      appendLog(`  → ${data.tracks.length}개 트랙 추가됨`);
     } else if (data.type === 'preview') {
       showPreviewModal(jobId, data);
     } else if (data.type === 'done') {
@@ -673,26 +757,46 @@ function listenProgress(jobId) {
 }
 
 // ── 샘플 플레이어 ─────────────────────────────────────────────────────────────
-function showSamplePlayer(jobId) {
-  const audio = document.getElementById('sample-audio');
-  audio.src = `/sample/${jobId}?t=${Date.now()}`;
+function showSamplePlayer(jobId, trackNum, totalTracks, trackCount) {
+  const t = Date.now();
+  document.getElementById('sample-audio-0').src = `/sample/${jobId}?index=0&t=${t}`;
+  const trackB   = document.getElementById('sample-track-b');
+  const hasTwoTracks = trackCount >= 2;
+  if (hasTwoTracks) {
+    document.getElementById('sample-audio-1').src = `/sample/${jobId}?index=1&t=${t}`;
+    trackB.style.display = '';
+  } else {
+    trackB.style.display = 'none';
+  }
   document.getElementById('sample-card').classList.add('visible');
-  // 버튼에 jobId 저장
-  document.getElementById('btn-approve-sample').dataset.jobId = jobId;
-  document.getElementById('btn-retry-sample').dataset.jobId  = jobId;
+  document.getElementById('btn-select-0').dataset.jobId = jobId;
+  document.getElementById('btn-select-1').dataset.jobId = jobId;
+  document.getElementById('btn-retry-sample').dataset.jobId = jobId;
+
+  const isLast = trackNum >= totalTracks;
+  const label  = isLast ? `(${trackNum}/${totalTracks}) 영상 만들기` : `(${trackNum}/${totalTracks}) 다음 트랙`;
+  document.getElementById('btn-select-0').textContent = `✅ A 선택 ${label}`;
+  document.getElementById('btn-select-1').textContent = `✅ B 선택 ${label}`;
+  document.getElementById('sample-card-desc').textContent =
+    trackNum === 1
+      ? 'A/B 두 버전을 들어보고 마음에 드는 걸 선택하세요.'
+      : `트랙 ${trackNum}/${totalTracks} — A/B 중 하나를 선택하세요.`;
 }
 
-async function approveSample() {
-  const jobId = document.getElementById('btn-approve-sample').dataset.jobId;
+async function approveSample(selectedIndex) {
+  const jobId = document.getElementById('btn-select-0').dataset.jobId;
   document.getElementById('sample-card').classList.remove('visible');
-  appendLog('✅ 샘플 승인 — 나머지 음악 생성 시작');
-  await fetch(`/approve-sample/${jobId}`, {method:'POST'});
+  document.getElementById('sample-audio-0').src = '';
+  document.getElementById('sample-audio-1').src = '';
+  appendLog(`✅ ${selectedIndex === 0 ? 'A' : 'B'} 버전 선택`);
+  await fetch(`/approve-sample/${jobId}?selected_index=${selectedIndex}`, {method:'POST'});
 }
 
 async function retrySample() {
   const jobId = document.getElementById('btn-retry-sample').dataset.jobId;
   document.getElementById('sample-card').classList.remove('visible');
-  document.getElementById('sample-audio').src = '';
+  document.getElementById('sample-audio-0').src = '';
+  document.getElementById('sample-audio-1').src = '';
   appendLog('🔄 샘플 다시 생성 요청...');
   await fetch(`/retry-sample/${jobId}`, {method:'POST'});
 }
@@ -780,63 +884,103 @@ function seekTrack(e) {
   trackAudio.currentTime = pct * trackAudio.duration;
 }
 
+function buildTrackItem(track, idx, jobId) {
+  const ul = document.getElementById('track-list');
+  const li = document.createElement('li');
+  li.className = 'track-item';
+  li.draggable = true;
+  li.dataset.path = track.path;
+  li.innerHTML = `
+    <input type="checkbox" class="track-checkbox" title="선택" />
+    <span class="drag-handle">⠿</span>
+    <button class="track-play-btn" title="재생/일시정지">▶</button>
+    <span class="track-num">${idx + 1}</span>
+    <span class="track-name">${escapeHtml(track.name)}</span>`;
+
+  // 체크박스: 드래그 방해 안 하도록
+  li.querySelector('.track-checkbox').addEventListener('click', e => e.stopPropagation());
+
+  // 재생 버튼
+  const playBtn = li.querySelector('.track-play-btn');
+  playBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    toggleTrack(playBtn, track.path, jobId, track.name);
+  });
+
+  // 드래그 이벤트
+  li.addEventListener('dragstart', e => {
+    dragSrcEl = li;
+    li.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  });
+  li.addEventListener('dragend', () => {
+    li.classList.remove('dragging');
+    updateTrackNumbers();
+  });
+  li.addEventListener('dragover', e => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    document.querySelectorAll('.track-item').forEach(el => el.classList.remove('drag-over'));
+    li.classList.add('drag-over');
+  });
+  li.addEventListener('dragleave', () => li.classList.remove('drag-over'));
+  li.addEventListener('drop', e => {
+    e.preventDefault();
+    li.classList.remove('drag-over');
+    if (dragSrcEl && dragSrcEl !== li) {
+      const items = [...ul.querySelectorAll('.track-item')];
+      const srcIdx = items.indexOf(dragSrcEl);
+      const dstIdx = items.indexOf(li);
+      if (srcIdx < dstIdx) ul.insertBefore(dragSrcEl, li.nextSibling);
+      else ul.insertBefore(dragSrcEl, li);
+      updateTrackNumbers();
+    }
+  });
+  return li;
+}
+
 function showTrackOrder(jobId, tracks) {
   trackOrderJobId = jobId;
   stopTrack();
   const ul = document.getElementById('track-list');
   ul.innerHTML = '';
-
-  tracks.forEach((track, idx) => {
-    const li = document.createElement('li');
-    li.className = 'track-item';
-    li.draggable = true;
-    li.dataset.path = track.path;
-    li.innerHTML = `
-      <span class="drag-handle">⠿</span>
-      <button class="track-play-btn" title="재생/일시정지">▶</button>
-      <span class="track-num">${idx + 1}</span>
-      <span class="track-name">${escapeHtml(track.name)}</span>`;
-
-    // 재생 버튼 이벤트 (드래그 방해 안 하도록 버블 막기)
-    const playBtn = li.querySelector('.track-play-btn');
-    playBtn.addEventListener('click', e => {
-      e.stopPropagation();
-      toggleTrack(playBtn, track.path, jobId, track.name);
-    });
-
-    // 드래그 이벤트
-    li.addEventListener('dragstart', e => {
-      dragSrcEl = li;
-      li.classList.add('dragging');
-      e.dataTransfer.effectAllowed = 'move';
-    });
-    li.addEventListener('dragend', () => {
-      li.classList.remove('dragging');
-      updateTrackNumbers();
-    });
-    li.addEventListener('dragover', e => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      document.querySelectorAll('.track-item').forEach(el => el.classList.remove('drag-over'));
-      li.classList.add('drag-over');
-    });
-    li.addEventListener('dragleave', () => li.classList.remove('drag-over'));
-    li.addEventListener('drop', e => {
-      e.preventDefault();
-      li.classList.remove('drag-over');
-      if (dragSrcEl && dragSrcEl !== li) {
-        const items = [...ul.querySelectorAll('.track-item')];
-        const srcIdx = items.indexOf(dragSrcEl);
-        const dstIdx = items.indexOf(li);
-        if (srcIdx < dstIdx) ul.insertBefore(dragSrcEl, li.nextSibling);
-        else ul.insertBefore(dragSrcEl, li);
-        updateTrackNumbers();
-      }
-    });
-    ul.appendChild(li);
-  });
-
+  tracks.forEach((track, idx) => ul.appendChild(buildTrackItem(track, idx, jobId)));
   document.getElementById('track-order-card').classList.add('visible');
+}
+
+function deleteSelectedTracks() {
+  const checked = [...document.querySelectorAll('#track-list .track-checkbox:checked')];
+  if (!checked.length) { alert('삭제할 트랙을 선택해주세요.'); return; }
+  checked.forEach(cb => {
+    const li = cb.closest('.track-item');
+    if (currentPlayLi === li) stopTrack();
+    li.remove();
+  });
+  updateTrackNumbers();
+}
+
+async function addMoreTracks() {
+  const btn = document.getElementById('btn-add-tracks');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 생성 중...';
+  appendLog('🎵 음악 추가 요청 중...');
+  try {
+    await fetch(`/add-tracks/${trackOrderJobId}`, {method: 'POST'});
+  } catch(e) {
+    appendLog(`❌ 추가 요청 실패: ${e.message}`);
+    btn.disabled = false;
+    btn.innerHTML = '➕ 음악 추가';
+  }
+}
+
+function appendTracksToList(jobId, newTracks) {
+  const ul = document.getElementById('track-list');
+  const currentCount = ul.querySelectorAll('.track-item').length;
+  newTracks.forEach((track, i) => ul.appendChild(buildTrackItem(track, currentCount + i, jobId)));
+  updateTrackNumbers();
+  // 버튼 복구
+  const btn = document.getElementById('btn-add-tracks');
+  if (btn) { btn.disabled = false; btn.innerHTML = '➕ 음악 추가'; }
 }
 
 function updateTrackNumbers() {
