@@ -50,7 +50,7 @@ class GenerateRequest(BaseModel):
     title: str
     genre: str = "lofi"
     image_path: Optional[str] = None
-    extra_tracks: int = 9  # 샘플 승인 후 추가 생성할 배치 수 (1배치=2트랙)
+    extra_tracks: int = 19  # 샘플 승인 후 추가 생성할 배치 수 (1배치=1트랙)
     instrumental: bool = True
     lyrics: str = ""
     language: str = "English"
@@ -616,7 +616,7 @@ async def run_pipeline(job_id: str, req: GenerateRequest):
         "title":        req.title,
         "genre":        req.genre,
         "extra_tracks": req.extra_tracks,
-        "target_count": (req.extra_tracks + 1) * 2,
+        "target_count": req.extra_tracks + 1,
         "image_path":   image_path,
         "instrumental": req.instrumental,
         "lyrics":       req.lyrics,
