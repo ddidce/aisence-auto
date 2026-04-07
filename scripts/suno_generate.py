@@ -6,6 +6,7 @@ Suno API 음악 생성 스크립트
 """
 
 import os
+import re
 import time
 import argparse
 import requests
@@ -26,20 +27,46 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # ── 1. 음악 생성 요청 ─────────────────────────────────────────────────────────
 def generate_music(title: str, style: str, lyrics: str,
-                   model: str = "V4_5", instrumental: bool = False) -> str:
-    payload = {
-        "customMode": True,
-        "instrumental": instrumental,
-        "model": model,
-        "title": title,
-        "style": style,
-        "prompt": lyrics,
-        "callBackUrl": "https://webhook.site/aisence-callback",
-    }
-    if not instrumental:
-        payload["vocalGender"] = "f"
+                   model: str = "V4_5", instrumental: bool = False,
+                   language: str = "English") -> str:
+    if instrumental:
+        # 반주 모드
+        payload = {
+            "customMode": True,
+            "instrumental": True,
+            "model": model,
+            "title": title,
+            "style": style,
+            "prompt": lyrics or style,
+            "callBackUrl": "https://webhook.site/aisence-callback",
+        }
+    elif lyrics:
+        # 보컬 + 직접 가사
+        payload = {
+            "customMode": True,
+            "instrumental": False,
+            "model": model,
+            "title": title,
+            "style": style,
+            "prompt": lyrics,
+            "callBackUrl": "https://webhook.site/aisence-callback",
+            "vocalGender": "f",
+        }
+    else:
+        # 보컬 + 자동 가사: prompt에 언어 명시
+        prompt = f"{style}. Lyrics in {language}."
+        payload = {
+            "customMode": False,
+            "instrumental": False,
+            "model": model,
+            "title": title,
+            "prompt": prompt,
+            "callBackUrl": "https://webhook.site/aisence-callback",
+            "vocalGender": "f",
+        }
 
-    print(f"[1/3] 생성 요청 중: {title}")
+    print(f"[1/3] mode={'instrumental' if instrumental else 'vocal'} customMode={payload['customMode']} prompt_len={len(payload.get('prompt',''))}")
+    import sys; sys.stdout.flush()
     resp = requests.post(f"{BASE_URL}/generate", headers=HEADERS, json=payload)
     resp.raise_for_status()
     data = resp.json()
@@ -85,6 +112,11 @@ def wait_for_result(task_id: str, timeout: int = 360) -> list[dict]:
 
 
 # ── 3. mp3 다운로드 ───────────────────────────────────────────────────────────
+def _sanitize(name: str) -> str:
+    """파일명으로 쓸 수 없는 문자 제거"""
+    return re.sub(r'[\\/:*?"<>|]', '', name).strip()[:80]
+
+
 def download_mp3(tracks: list[dict], title: str) -> list[str]:
     print(f"[3/3] mp3 다운로드 중... ({len(tracks)}개 트랙)")
     paths = []
@@ -95,9 +127,18 @@ def download_mp3(tracks: list[dict], title: str) -> list[str]:
             print(f"  ✗ {i+1}번 트랙 audio_url 없음")
             continue
 
-        suffix = f"_{i+1}" if len(tracks) > 1 else ""
-        filename = f"{title}{suffix}.mp3"
+        suno_title = _sanitize(track.get("title", "").strip())
+        if suno_title:
+            filename = f"{suno_title}.mp3"
+        else:
+            suffix = f"_{i+1}" if len(tracks) > 1 else ""
+            filename = f"{title}{suffix}.mp3"
+
         filepath = os.path.join(OUTPUT_DIR, filename)
+        if os.path.exists(filepath):
+            base = filename[:-4]
+            filename = f"{base}_{i+1}.mp3"
+            filepath = os.path.join(OUTPUT_DIR, filename)
 
         r = requests.get(audio_url, stream=True, timeout=60)
         r.raise_for_status()
