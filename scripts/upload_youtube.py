@@ -33,6 +33,8 @@ GENRE_TAGS = {
 }
 
 # 장르별 설명 템플릿
+COPYRIGHT_NOTICE = "\n\n---\n해당 영상에 사용된 모든 음악, 가사는 @AIsense가 직접 제작한 콘텐츠입니다.\n무단 사용 및 재 업로드는 금지되어 있습니다."
+
 GENRE_DESC = {
     "lofi":         "🎵 따뜻한 로파이 비트, 오늘도 수고했어요.\n\nAI로 만든 감성 음악 채널, aisence\n매주 새로운 트랙을 업로드합니다.\n\n구독 & 좋아요는 큰 힘이 됩니다 🙏\n\n#aisence #lofi #lofimusic #AI음악",
     "heal":         "🌿 지친 하루 끝에 듣는 힐링 음악.\n\nAI로 만든 감성 음악 채널, aisence\n매주 새로운 트랙을 업로드합니다.\n\n구독 & 좋아요는 큰 힘이 됩니다 🙏\n\n#aisence #힐링음악 #healingmusic #AI음악",
@@ -90,7 +92,7 @@ def upload_video(video_path: str, title: str, genre: str = "lofi",
     """
     genre = genre.lower()
     tags = GENRE_TAGS.get(genre, GENRE_TAGS["lofi"])
-    desc = description or GENRE_DESC.get(genre, GENRE_DESC["lofi"])
+    desc = (description or GENRE_DESC.get(genre, GENRE_DESC["lofi"])) + COPYRIGHT_NOTICE
 
     # 공개 상태 설정
     if scheduled_time:
