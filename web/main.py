@@ -726,23 +726,23 @@ async def run_pipeline(job_id: str, req: GenerateRequest):
 
 # ── 재개 파이프라인 ────────────────────────────────────────────────────────────
 async def run_resume_pipeline(job_id: str, series_dir: Path, meta: dict):
-    jobs[job_id]["status"]       = "running"
-    jobs[job_id]["series_dir"]   = str(series_dir)
-    jobs[job_id]["concept"]      = meta.get("concept", "")
-    jobs[job_id]["instrumental"] = instrumental
-    jobs[job_id]["lyrics"]       = lyrics
-    jobs[job_id]["language"]     = language
-
     series_name  = meta["series_name"]
     concept      = meta["concept"]
     title        = meta["title"]
     genre        = meta["genre"]
     extra_tracks = meta.get("extra_tracks", 9)
-    target_count = meta.get("target_count", (extra_tracks + 1) * 2)
+    target_count = meta.get("target_count", extra_tracks + 1)
     image_path   = meta.get("image_path")
     instrumental = meta.get("instrumental", True)
     lyrics       = meta.get("lyrics", "")
     language     = meta.get("language", "English")
+
+    jobs[job_id]["status"]       = "running"
+    jobs[job_id]["series_dir"]   = str(series_dir)
+    jobs[job_id]["concept"]      = concept
+    jobs[job_id]["instrumental"] = instrumental
+    jobs[job_id]["lyrics"]       = lyrics
+    jobs[job_id]["language"]     = language
 
     # 이미지 경로 유효성 확인 (없으면 폴더 내 PNG 검색)
     if not image_path or not os.path.exists(image_path):

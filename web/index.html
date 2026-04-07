@@ -705,13 +705,17 @@ async function startGenerate() {
         title: finalTitle,
         genre: finalGenre,
         image_path: uploadedImagePath || null,
-        extra_tracks: 9,
+        extra_tracks: 19,
         instrumental: isInstrumental,
         lyrics: lyrics,
         language: language,
       })
     });
-    if (!res.ok) { const err = await res.json(); throw new Error(err.detail||'서버 오류'); }
+    if (!res.ok) {
+      let msg = '서버 오류';
+      try { const err = await res.json(); msg = err.detail || msg; } catch {}
+      throw new Error(msg);
+    }
     const {job_id} = await res.json();
     currentJobId = job_id;
     listenProgress(job_id);
@@ -1081,7 +1085,11 @@ async function resumeJob(seriesName) {
 
   try {
     const res = await fetch(`/resume/${encodeURIComponent(seriesName)}`, {method: 'POST'});
-    if (!res.ok) { const err = await res.json(); throw new Error(err.detail || '재개 실패'); }
+    if (!res.ok) {
+      let msg = '재개 실패';
+      try { const err = await res.json(); msg = err.detail || msg; } catch {}
+      throw new Error(msg);
+    }
     const {job_id} = await res.json();
     currentJobId = job_id;
     listenProgress(job_id);
