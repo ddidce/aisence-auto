@@ -42,10 +42,6 @@
   - 이모지 예시: ☕ 카페/커피, 🌙 새벽/밤, 🌧️ 비/감성, 🎷 재즈, 🌅 노을/저녁, 🍃 힐링/자연
 - 설명 필수 포함 항목:
   - 추천 대상
-  - 제작 도구 (항상 명시):
-    - Music : Suno AI
-    - Image : Canva
-    - Video : Python (MoviePy)
 - 태그: 분위기 관련 키워드
 
 ## 폴더 구조
@@ -67,7 +63,6 @@ music_ai_proj/
 ```
 
 ## 규칙
-- 유튜브 업로드 설명에 항상 제작 도구 3가지 명시할 것: Music(Suno AI), Image(Canva), Video(Python MoviePy)
 - 영상은 MoviePy로 생성 (캡컷 사용 안 함)
 - 배경 이미지는 사용자가 PNG로 직접 준비해서 해당 폴더에 넣어줌
 - make_playlist_video.py는 폴더 내 PNG/MP3를 자동 감지하므로 경로만 맞으면 바로 실행 가능
