@@ -229,7 +229,8 @@
     .dot-loading span:nth-child(3) { animation-delay:.4s; }
     @keyframes dotFlash { 0%,80%,100%{opacity:.2;}40%{opacity:1;} }
 
-    /* 장르 버튼 그리드 */
+    /* 스타일 조합 */
+    .combo-row-label { font-size: 13px; font-weight: 600; color: #aaa; margin-bottom: 8px; }
     .genre-group { margin-bottom: 14px; }
     .genre-group-label { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: #555; margin-bottom: 8px; }
     .genre-row { display: flex; flex-wrap: wrap; gap: 7px; }
@@ -311,84 +312,96 @@
         placeholder="시리즈명을 입력하면 자동으로 채워집니다..." style="color:#d97706;font-weight:500;" />
     </div>
 
-    <!-- 장르 -->
+    <!-- 스타일 조합 -->
     <div class="mb-7">
-      <div class="section-label">장르</div>
+      <div class="section-label">스타일 조합</div>
       <input type="hidden" id="pv-genre" value="lofi">
-      <div>
-        <div class="genre-group">
-          <div class="genre-group-label">감성 / 분위기</div>
+      <div style="display:flex;flex-direction:column;gap:16px;">
+
+        <!-- 장르 (필수) -->
+        <div>
+          <div class="combo-row-label">🎵 장르 <span style="color:#ef4444;font-size:11px;">필수</span></div>
           <div class="genre-row">
-            <button class="genre-btn selected" data-genre="lofi"         onclick="selectGenre(this)">🎧 로파이</button>
-            <button class="genre-btn"           data-genre="dawn"         onclick="selectGenre(this)">🌙 새벽</button>
-            <button class="genre-btn"           data-genre="heal"         onclick="selectGenre(this)">🍃 힐링</button>
-            <button class="genre-btn"           data-genre="ambient"      onclick="selectGenre(this)">🌌 앰비언트</button>
-            <button class="genre-btn"           data-genre="sleep"        onclick="selectGenre(this)">😴 수면</button>
-            <button class="genre-btn"           data-genre="study"        onclick="selectGenre(this)">📚 공부/집중</button>
-            <button class="genre-btn"           data-genre="meditation"   onclick="selectGenre(this)">🧘 명상</button>
-            <button class="genre-btn"           data-genre="rain"         onclick="selectGenre(this)">🌧️ 빗속</button>
-            <button class="genre-btn"           data-genre="sunset"       onclick="selectGenre(this)">🌅 노을</button>
+            <button class="genre-btn selected" data-cat="genre" data-val="lofi"         onclick="selectCombo(this,'genre')">🎧 로파이</button>
+            <button class="genre-btn" data-cat="genre" data-val="jazz"                  onclick="selectCombo(this,'genre')">🎷 재즈</button>
+            <button class="genre-btn" data-cat="genre" data-val="citypop"               onclick="selectCombo(this,'genre')">🌆 시티팝</button>
+            <button class="genre-btn" data-cat="genre" data-val="chillwave"             onclick="selectCombo(this,'genre')">🌊 칠웨이브</button>
+            <button class="genre-btn" data-cat="genre" data-val="ballad"                onclick="selectCombo(this,'genre')">🎵 발라드</button>
+            <button class="genre-btn" data-cat="genre" data-val="kpop"                  onclick="selectCombo(this,'genre')">🎤 K-Pop</button>
+            <button class="genre-btn" data-cat="genre" data-val="aespa"                 onclick="selectCombo(this,'genre')">🤖 에스파</button>
+            <button class="genre-btn" data-cat="genre" data-val="shinee"                onclick="selectCombo(this,'genre')">✨ 샤이니</button>
+            <button class="genre-btn" data-cat="genre" data-val="snsd"                  onclick="selectCombo(this,'genre')">🌟 소녀시대</button>
+            <button class="genre-btn" data-cat="genre" data-val="disco"                 onclick="selectCombo(this,'genre')">💿 디스코</button>
+            <button class="genre-btn" data-cat="genre" data-val="rock"                  onclick="selectCombo(this,'genre')">🎸 록</button>
+            <button class="genre-btn" data-cat="genre" data-val="rnb"                   onclick="selectCombo(this,'genre')">🎵 R&amp;B</button>
+            <button class="genre-btn" data-cat="genre" data-val="swing"                 onclick="selectCombo(this,'genre')">🎺 스윙</button>
+            <button class="genre-btn" data-cat="genre" data-val="latin"                 onclick="selectCombo(this,'genre')">🌴 라틴</button>
+            <button class="genre-btn" data-cat="genre" data-val="reggae"                onclick="selectCombo(this,'genre')">🏝️ 레게</button>
+            <button class="genre-btn" data-cat="genre" data-val="electronic"            onclick="selectCombo(this,'genre')">🎛️ 전자음악</button>
+            <button class="genre-btn" data-cat="genre" data-val="newage"                onclick="selectCombo(this,'genre')">🌠 뉴에이지</button>
+            <button class="genre-btn" data-cat="genre" data-val="cinematic"             onclick="selectCombo(this,'genre')">🎬 시네마틱</button>
+            <button class="genre-btn" data-cat="genre" data-val="ambient"               onclick="selectCombo(this,'genre')">🌌 앰비언트</button>
+            <button class="genre-btn" data-cat="genre" data-val="heal"                  onclick="selectCombo(this,'genre')">🍃 힐링</button>
+            <button class="genre-btn" data-cat="genre" data-val="easylistening"         onclick="selectCombo(this,'genre')">🎶 이지리스닝</button>
+            <button class="genre-btn" data-cat="genre" data-val="lullaby"               onclick="selectCombo(this,'genre')">🌛 자장가</button>
           </div>
         </div>
-        <div class="genre-group">
-          <div class="genre-group-label">장르</div>
+
+        <!-- 분위기 (선택) -->
+        <div>
+          <div class="combo-row-label">🌙 분위기 <span style="color:#555;font-size:11px;">선택 (다시 클릭하면 해제)</span></div>
           <div class="genre-row">
-            <button class="genre-btn" data-genre="citypop"      onclick="selectGenre(this)">🌆 시티팝</button>
-            <button class="genre-btn" data-genre="chillwave"    onclick="selectGenre(this)">🌊 칠웨이브</button>
-            <button class="genre-btn" data-genre="cafe_jazz"    onclick="selectGenre(this)">☕ 카페재즈</button>
-            <button class="genre-btn" data-genre="jazz"         onclick="selectGenre(this)">🎷 재즈</button>
-            <button class="genre-btn" data-genre="swing"        onclick="selectGenre(this)">🎺 스윙</button>
-            <button class="genre-btn" data-genre="ballad"       onclick="selectGenre(this)">🎵 발라드</button>
-            <button class="genre-btn" data-genre="newage"       onclick="selectGenre(this)">🌠 뉴에이지</button>
-            <button class="genre-btn" data-genre="easylistening" onclick="selectGenre(this)">🎶 이지리스닝</button>
+            <button class="genre-btn" data-cat="mood" data-val="dawn"       onclick="selectCombo(this,'mood')">🌙 새벽/심야</button>
+            <button class="genre-btn" data-cat="mood" data-val="heal"       onclick="selectCombo(this,'mood')">🍃 힐링</button>
+            <button class="genre-btn" data-cat="mood" data-val="drive"      onclick="selectCombo(this,'mood')">🚗 드라이브</button>
+            <button class="genre-btn" data-cat="mood" data-val="cafe"       onclick="selectCombo(this,'mood')">☕ 카페</button>
+            <button class="genre-btn" data-cat="mood" data-val="rain"       onclick="selectCombo(this,'mood')">🌧️ 빗속</button>
+            <button class="genre-btn" data-cat="mood" data-val="sunset"     onclick="selectCombo(this,'mood')">🌅 노을</button>
+            <button class="genre-btn" data-cat="mood" data-val="travel"     onclick="selectCombo(this,'mood')">✈️ 여행</button>
+            <button class="genre-btn" data-cat="mood" data-val="study"      onclick="selectCombo(this,'mood')">📚 공부/집중</button>
+            <button class="genre-btn" data-cat="mood" data-val="sleep"      onclick="selectCombo(this,'mood')">😴 수면</button>
+            <button class="genre-btn" data-cat="mood" data-val="meditation" onclick="selectCombo(this,'mood')">🧘 명상</button>
+            <button class="genre-btn" data-cat="mood" data-val="spring"     onclick="selectCombo(this,'mood')">🌸 봄</button>
+            <button class="genre-btn" data-cat="mood" data-val="autumn"     onclick="selectCombo(this,'mood')">🍂 가을</button>
+            <button class="genre-btn" data-cat="mood" data-val="winter"     onclick="selectCombo(this,'mood')">❄️ 겨울</button>
+            <button class="genre-btn" data-cat="mood" data-val="night"      onclick="selectCombo(this,'mood')">🌃 심야/야간</button>
           </div>
         </div>
-        <div class="genre-group">
-          <div class="genre-group-label">팝 / 댄스 / 일렉</div>
+
+        <!-- 주요 악기 (선택) -->
+        <div>
+          <div class="combo-row-label">🎹 주요 악기 <span style="color:#555;font-size:11px;">선택 (다시 클릭하면 해제)</span></div>
           <div class="genre-row">
-            <button class="genre-btn" data-genre="kpop"        onclick="selectGenre(this)">🎤 K-Pop</button>
-            <button class="genre-btn" data-genre="aespa"       onclick="selectGenre(this)">🤖 에스파</button>
-            <button class="genre-btn" data-genre="shinee"      onclick="selectGenre(this)">✨ 샤이니</button>
-            <button class="genre-btn" data-genre="snsd"        onclick="selectGenre(this)">🌟 소녀시대</button>
-            <button class="genre-btn" data-genre="disco"       onclick="selectGenre(this)">💿 디스코</button>
-            <button class="genre-btn" data-genre="electronic"  onclick="selectGenre(this)">🎛️ 전자음악</button>
-            <button class="genre-btn" data-genre="rnb"         onclick="selectGenre(this)">🎵 R&amp;B</button>
-            <button class="genre-btn" data-genre="bass"        onclick="selectGenre(this)">🌑 베이스/다크</button>
+            <button class="genre-btn" data-cat="instrument" data-val="piano"    onclick="selectCombo(this,'instrument')">🎹 피아노</button>
+            <button class="genre-btn" data-cat="instrument" data-val="acoustic" onclick="selectCombo(this,'instrument')">🎸 어쿠스틱기타</button>
+            <button class="genre-btn" data-cat="instrument" data-val="electric" onclick="selectCombo(this,'instrument')">⚡ 일렉기타</button>
+            <button class="genre-btn" data-cat="instrument" data-val="synth"    onclick="selectCombo(this,'instrument')">🎛️ 신스</button>
+            <button class="genre-btn" data-cat="instrument" data-val="strings"  onclick="selectCombo(this,'instrument')">🎻 현악</button>
+            <button class="genre-btn" data-cat="instrument" data-val="brass"    onclick="selectCombo(this,'instrument')">🎺 관악</button>
+            <button class="genre-btn" data-cat="instrument" data-val="bass"     onclick="selectCombo(this,'instrument')">🔊 베이스</button>
+            <button class="genre-btn" data-cat="instrument" data-val="drums"    onclick="selectCombo(this,'instrument')">🥁 드럼</button>
           </div>
         </div>
-        <div class="genre-group">
-          <div class="genre-group-label">악기 / 어쿠스틱</div>
+
+        <!-- 템포 (선택) -->
+        <div>
+          <div class="combo-row-label">⏱️ 템포 <span style="color:#555;font-size:11px;">선택 (다시 클릭하면 해제)</span></div>
           <div class="genre-row">
-            <button class="genre-btn" data-genre="piano"    onclick="selectGenre(this)">🎹 피아노</button>
-            <button class="genre-btn" data-genre="acoustic" onclick="selectGenre(this)">🎸 어쿠스틱</button>
-            <button class="genre-btn" data-genre="rock"     onclick="selectGenre(this)">🎸 록</button>
-            <button class="genre-btn" data-genre="latin"    onclick="selectGenre(this)">🌴 라틴/보사노바</button>
-            <button class="genre-btn" data-genre="reggae"   onclick="selectGenre(this)">🏝️ 레게</button>
+            <button class="genre-btn" data-cat="tempo" data-val="slow"   onclick="selectCombo(this,'tempo')">🐢 느리게 (55-70 BPM)</button>
+            <button class="genre-btn" data-cat="tempo" data-val="medium" onclick="selectCombo(this,'tempo')">🚶 보통 (80-100 BPM)</button>
+            <button class="genre-btn" data-cat="tempo" data-val="fast"   onclick="selectCombo(this,'tempo')">🏃 빠르게 (115-135 BPM)</button>
           </div>
         </div>
-        <div class="genre-group">
-          <div class="genre-group-label">활동 / 상황</div>
-          <div class="genre-row">
-            <button class="genre-btn" data-genre="drive"        onclick="selectGenre(this)">🚗 드라이브</button>
-            <button class="genre-btn" data-genre="drive_night"  onclick="selectGenre(this)">🌃 야간드라이브</button>
-            <button class="genre-btn" data-genre="drive_summer" onclick="selectGenre(this)">☀️ 여름드라이브</button>
-            <button class="genre-btn" data-genre="drive_rain"   onclick="selectGenre(this)">🌧️ 빗속드라이브</button>
-            <button class="genre-btn" data-genre="walk"         onclick="selectGenre(this)">🚶 산책</button>
-            <button class="genre-btn" data-genre="travel"       onclick="selectGenre(this)">✈️ 여행</button>
-            <button class="genre-btn" data-genre="cafe"         onclick="selectGenre(this)">☕ 카페</button>
-            <button class="genre-btn" data-genre="lullaby"      onclick="selectGenre(this)">🌛 자장가</button>
-          </div>
+
+        <!-- 조합 미리보기 -->
+        <div id="combo-preview" style="
+          background:#1a1a1c; border:1px solid #3a3a3c; border-radius:10px;
+          padding:12px 16px; font-size:13px; color:#888; line-height:1.6;
+        ">
+          <span style="color:#555;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">조합 미리보기</span><br>
+          <span id="combo-preview-text" style="color:#d97706;">🎧 로파이</span>
         </div>
-        <div class="genre-group" style="margin-bottom:0;">
-          <div class="genre-group-label">계절</div>
-          <div class="genre-row">
-            <button class="genre-btn" data-genre="spring"  onclick="selectGenre(this)">🌸 봄</button>
-            <button class="genre-btn" data-genre="autumn"  onclick="selectGenre(this)">🍂 가을</button>
-            <button class="genre-btn" data-genre="winter"  onclick="selectGenre(this)">❄️ 겨울</button>
-            <button class="genre-btn" data-genre="cinematic"      onclick="selectGenre(this)">🎬 시네마틱</button>
-            <button class="genre-btn" data-genre="cinematic_jazz" onclick="selectGenre(this)">🎬 시네마틱재즈</button>
-          </div>
-        </div>
+
       </div>
     </div>
 
@@ -614,10 +627,58 @@ let currentJobId      = null;
 let uploadedImagePath = null;
 let uploadedImageUrl  = null;
 
+// ── 조합형 장르 선택 ─────────────────────────────────────────────────────────
+let _combo = { genre: 'lofi', mood: '', instrument: '', tempo: '' };
+
+const _comboLabels = {
+  genre: { lofi:'🎧 로파이', jazz:'🎷 재즈', citypop:'🌆 시티팝', chillwave:'🌊 칠웨이브',
+    ballad:'🎵 발라드', kpop:'🎤 K-Pop', aespa:'🤖 에스파', shinee:'✨ 샤이니',
+    snsd:'🌟 소녀시대', disco:'💿 디스코', rock:'🎸 록', rnb:'🎵 R&B',
+    swing:'🎺 스윙', latin:'🌴 라틴', reggae:'🏝️ 레게', electronic:'🎛️ 전자음악',
+    newage:'🌠 뉴에이지', cinematic:'🎬 시네마틱', ambient:'🌌 앰비언트',
+    heal:'🍃 힐링', easylistening:'🎶 이지리스닝', lullaby:'🌛 자장가' },
+  mood: { dawn:'🌙 새벽/심야', heal:'🍃 힐링', drive:'🚗 드라이브', cafe:'☕ 카페',
+    rain:'🌧️ 빗속', sunset:'🌅 노을', travel:'✈️ 여행', study:'📚 공부/집중',
+    sleep:'😴 수면', meditation:'🧘 명상', spring:'🌸 봄', autumn:'🍂 가을',
+    winter:'❄️ 겨울', night:'🌃 심야/야간' },
+  instrument: { piano:'🎹 피아노', acoustic:'🎸 어쿠스틱기타', electric:'⚡ 일렉기타',
+    synth:'🎛️ 신스', strings:'🎻 현악', brass:'🎺 관악', bass:'🔊 베이스', drums:'🥁 드럼' },
+  tempo: { slow:'🐢 느리게', medium:'🚶 보통', fast:'🏃 빠르게' },
+};
+
+function selectCombo(btn, cat) {
+  const val = btn.dataset.val;
+  if (cat !== 'genre' && _combo[cat] === val) {
+    // 선택 해제 (토글)
+    btn.classList.remove('selected');
+    _combo[cat] = '';
+  } else {
+    document.querySelectorAll(`.genre-btn[data-cat="${cat}"]`).forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    _combo[cat] = val;
+  }
+  _updateCombo();
+}
+
+function _updateCombo() {
+  const parts = [_combo.genre, _combo.mood, _combo.instrument, _combo.tempo].filter(Boolean);
+  document.getElementById('pv-genre').value = parts.join('+');
+
+  const labels = [
+    _comboLabels.genre[_combo.genre] || _combo.genre,
+    _combo.mood       ? _comboLabels.mood[_combo.mood]             : null,
+    _combo.instrument ? _comboLabels.instrument[_combo.instrument] : null,
+    _combo.tempo      ? _comboLabels.tempo[_combo.tempo]           : null,
+  ].filter(Boolean);
+  document.getElementById('combo-preview-text').textContent = labels.join('  +  ');
+}
+
 function selectGenre(btn) {
-  document.querySelectorAll('.genre-btn').forEach(b => b.classList.remove('selected'));
-  btn.classList.add('selected');
-  document.getElementById('pv-genre').value = btn.dataset.genre;
+  // 구 호환용 (analyze-series 응답에서 호출)
+  const genreVal = btn.dataset.genre || btn.dataset.val;
+  const genreBtn = document.querySelector(`.genre-btn[data-cat="genre"][data-val="${genreVal}"]`);
+  if (genreBtn) selectCombo(genreBtn, 'genre');
+  else { _combo.genre = genreVal; _updateCombo(); }
 }
 let autoData = { concept:'', genre:'lofi', title:'' };
 let debounceTimer = null;
@@ -759,10 +820,10 @@ async function analyzeSeries(name) {
     const data = await res.json();
     autoData = data;
 
-    // 장르 버튼 선택
-    const genreBtn = document.querySelector(`.genre-btn[data-genre="${data.genre}"]`);
-    if (genreBtn) selectGenre(genreBtn);
-    else document.getElementById('pv-genre').value = data.genre;
+    // 장르 버튼 선택 (장르 키만 반영, 분위기/악기/템포는 유지)
+    const genreBtn = document.querySelector(`.genre-btn[data-cat="genre"][data-val="${data.genre}"]`);
+    if (genreBtn) selectCombo(genreBtn, 'genre');
+    else { _combo.genre = data.genre || 'lofi'; _updateCombo(); }
     document.getElementById('pv-concept').value = data.concept;
     document.getElementById('pv-title').value   = data.title;
   } catch {

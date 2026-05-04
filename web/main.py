@@ -38,54 +38,144 @@ MUSIC_FILE_ROOT.mkdir(parents=True, exist_ok=True)
 
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 
-# ── 장르별 Suno 스타일 매핑 (영어 키워드로 음색을 완전히 다르게) ─────────────────
-SUNO_STYLE_MAP: dict[str, str] = {
-    "lofi":          "lo-fi hip hop, vinyl crackle, mellow jazzy chords, 70 BPM, dusty boom-bap drums, Rhodes piano, warm tape hiss, chill study beats",
-    "heal":          "ambient healing, soft fingerpicked guitar, gentle strings, nature ambience, 58 BPM, spa music, airy pads, peaceful, no drums",
-    "bass":          "dark bass music, deep sub-bass, moody synth pads, 85 BPM, underground electronic, dark atmospheric, minor key",
-    "dawn":          "late-night lo-fi, melancholic synth arpeggios, 65 BPM, 3am city lights, minimal sparse beats, introspective, slow tempo",
-    "drive":         "synthwave, cinematic highway drive, 110 BPM, electric guitar lead, pulsing bass, open-road energy, 80s retro synth",
-    "drive_summer":  "summer indie pop, bright upbeat acoustic, 120 BPM, carefree, beach vibes, jangling guitar, warm sunny production",
-    "drive_night":   "night drive synthwave, neon city, 100 BPM, dark pulsing synth, reverb electric guitar, moody cinematic, nocturnal",
-    "drive_hype":    "hype EDM, festival drop, 128 BPM, heavy kick, massive synth lead, adrenaline rush, energetic buildup",
-    "drive_chill":   "chill indie road trip, mellow acoustic, 90 BPM, laid-back groove, sunset vibe, fingerpicked guitar, relaxed",
-    "drive_rain":    "rainy day jazz, melancholic piano, 75 BPM, soft rainfall ambience, bossa nova sway, minor chord progression, reflective",
-    "kpop":          "K-pop dance, punchy synth bass, 130 BPM, powerful female group vocal, tight production, catchy hook, SM Entertainment style",
-    "aespa":         "K-pop cyberpunk, heavy EDM drop, glitchy synth distortion, 135 BPM, dark futuristic beat, intense bridge, aespa Next Level style",
-    "shinee":        "K-pop funk pop, neo soul groove, punchy synth bass, 125 BPM, sophisticated R&B, tight rhythmic hook, SHINee Sherlock style",
-    "snsd":          "K-pop bubbly dance pop, cheerful synth hook, 128 BPM, bright girl group energy, clean soprano vocal, Girls Generation Gee style",
-    "cafe":          "cafe background, bossa nova guitar, warm upright bass, 80 BPM, afternoon sunlight, relaxed jazz-pop, light percussion",
-    "cafe_jazz":     "cafe jazz, acoustic piano trio, brushed snare, 85 BPM, upright bass walk, intimate warm atmosphere, classic jazz swing",
-    "cinematic":     "cinematic orchestral, sweeping strings, 80 BPM, emotional film score, dramatic build, full orchestra, epic and powerful",
-    "cinematic_jazz":"film noir jazz, muted trumpet, moody piano, 75 BPM, saxophone melody, cinematic atmosphere, sophisticated noir",
-    "jazz":          "acoustic jazz, bebop piano, upright bass, brushed drums, 100 BPM, improvisation, classic jazz club, swinging",
-    "piano":         "solo classical piano, expressive dynamics, 70 BPM, intimate concert hall, Chopin-influenced, no other instruments",
-    "acoustic":      "acoustic guitar fingerpicking, 80 BPM, warm indie folk, singer-songwriter, organic, natural room sound",
-    "spring":        "spring acoustic pop, bright cheerful, 95 BPM, acoustic guitar, birds chirping, fresh blossom, light and airy",
-    "autumn":        "autumn folk, melancholic cello, 75 BPM, fingerpicked guitar, leaf-fall nostalgia, minor key, wistful",
-    "winter":        "winter ambient piano, sparse crystalline, 65 BPM, cold breath atmosphere, snowfall imagery, quiet peaceful",
-    "rain":          "rainy day ambient, piano melody, 70 BPM, soft rainfall texture, introspective, grey sky mood, cozy indoors",
-    "sleep":         "sleep music, deep ambient drone, 55 BPM, binaural soft pads, no melody, pure tone, peaceful lullaby",
-    "study":         "focus study music, minimal piano, 75 BPM, background ambient, no lyrics, no drums, clean concentration music",
-    "meditation":    "meditation, Tibetan singing bowls, ambient drone, 50 BPM, breathing rhythm, zen, spiritual, no melody",
-    "ambient":       "pure ambient electronic, atmospheric pads, 60 BPM, spacious reverb, drone texture, minimalist, Brian Eno style",
-    "sunset":        "sunset soft rock, warm acoustic guitar, 85 BPM, golden hour nostalgia, emotional, Americana influenced",
-    "travel":        "travel world folk, uplifting acoustic, 95 BPM, global instruments, sense of adventure, open sky",
-    "walk":          "morning walk indie pop, light and bouncy, 100 BPM, acoustic guitar strum, cheerful, fresh air energy",
-    "citypop":       "city pop, 80s Japanese funk, smooth bass groove, bright synth chord stab, 110 BPM, Mariya Takeuchi style, sophisticated",
-    "chillwave":     "chillwave, dreamy reverb synth, 85 BPM, hazy nostalgic, tape-saturated, summer memories, Washed Out style",
-    "swing":         "swing jazz big band, brass section, 140 BPM, walking bass, tight drums, upbeat 1940s dance hall energy",
-    "latin":         "bossa nova latin jazz, nylon guitar, 105 BPM, clave rhythm, warm tropical, Brazilian influenced, samba groove",
-    "reggae":        "roots reggae, offbeat skank guitar, deep bass groove, 80 BPM, Jamaican rhythm, relaxed, laid-back",
-    "disco":         "disco funk, four-on-the-floor kick, 120 BPM, string section stab, wah guitar, 70s groove, danceable",
-    "rock":          "indie rock, distorted guitar riff, 120 BPM, live drums, bass, energetic, alternative rock, gritty",
-    "electronic":    "electronic dance, progressive synth, 125 BPM, punchy kick, layered pads, modern club production",
-    "rnb":           "neo soul R&B, warm soulful, 85 BPM, smooth bass, Rhodes chord, groove pocket, intimate vocal",
-    "newage":        "new age piano, 65 BPM, ambient pads, peaceful spiritual, gentle, George Winston style, no percussion",
-    "ballad":        "emotional pop ballad, piano and strings, 70 BPM, heartfelt, slow build, orchestral swell, tender",
-    "lullaby":       "gentle lullaby, music box melody, 55 BPM, soft plucked strings, soothing, nursery, tender and quiet",
-    "easylistening": "easy listening, smooth jazz guitar, 85 BPM, light background, pleasant, hotel lobby, mellow saxophone",
+# ── 조합형 Suno 스타일 맵 ────────────────────────────────────────────────────
+# genre+mood+instrument+tempo 조합으로 스타일 프롬프트 생성
+
+GENRE_STYLE: dict[str, str] = {
+    "lofi":          "lo-fi hip hop, vinyl crackle, jazzy chords, dusty boom-bap drums, Rhodes piano, warm tape hiss",
+    "jazz":          "acoustic jazz, bebop piano, upright bass, brushed snare drums, classic jazz club, swinging",
+    "citypop":       "city pop, 80s Japanese funk, smooth bass groove, bright synth chord stab, Mariya Takeuchi style",
+    "chillwave":     "chillwave, dreamy reverb synth, hazy nostalgic, tape-saturated, Washed Out style",
+    "ballad":        "pop ballad, emotional piano, sweeping strings, heartfelt, slow build, orchestral swell",
+    "kpop":          "K-pop dance, punchy synth bass, powerful female group vocal, tight production, catchy hook",
+    "aespa":         "K-pop cyberpunk, heavy EDM drop, glitchy synth distortion, dark futuristic beat, aespa style",
+    "shinee":        "K-pop funk pop, neo soul groove, punchy synth bass, sophisticated R&B, SHINee style",
+    "snsd":          "K-pop bubbly dance pop, cheerful synth hook, bright girl group energy, Girls Generation style",
+    "disco":         "disco funk, four-on-the-floor kick, string stab, wah guitar, groovy 70s dance",
+    "rock":          "indie rock, distorted guitar riff, live drums, energetic, alternative rock, gritty",
+    "rnb":           "neo soul R&B, smooth soulful, Rhodes chord, groove pocket, warm intimate",
+    "newage":        "new age piano, ambient pads, peaceful spiritual, George Winston style, no percussion",
+    "swing":         "swing jazz big band, brass section, walking bass, tight drums, 1940s dance hall energy",
+    "latin":         "bossa nova latin jazz, nylon guitar, clave rhythm, warm tropical, Brazilian samba groove",
+    "reggae":        "roots reggae, offbeat skank guitar, deep bass groove, Jamaican rhythm, relaxed",
+    "electronic":    "electronic dance, progressive synth, punchy kick, layered pads, modern club production",
+    "easylistening": "easy listening, smooth jazz guitar, light background, hotel lobby, mellow saxophone",
+    "cinematic":     "cinematic orchestral, sweeping strings, emotional film score, dramatic build, full orchestra",
+    "cinematic_jazz":"film noir jazz, muted trumpet, moody piano, saxophone melody, sophisticated noir",
+    "ambient":       "pure ambient electronic, atmospheric pads, spacious reverb, drone texture, Brian Eno style",
+    "heal":          "ambient healing, soft fingerpicked guitar, gentle strings, nature ambience, spa music, airy pads",
+    "lullaby":       "gentle lullaby, music box melody, soft plucked strings, soothing, tender and quiet",
 }
+
+MOOD_STYLE: dict[str, str] = {
+    "dawn":       "late night 3am atmosphere, melancholic, introspective, city lights, quiet solitude",
+    "heal":       "healing warmth, comforting, gentle reassurance, peaceful and safe",
+    "drive":      "highway drive, open road energy, cinematic movement, freedom",
+    "cafe":       "cafe atmosphere, afternoon sunlight, cozy indoors, relaxed social",
+    "rain":       "rainy day, soft rainfall texture, grey sky mood, cozy indoors, reflective",
+    "sunset":     "golden hour sunset, nostalgic warmth, end of day, emotional glow",
+    "travel":     "adventure, wanderlust, open sky, sense of discovery and freedom",
+    "study":      "focus and concentration, minimal distraction, clean background",
+    "sleep":      "drowsy and dreamlike, fading consciousness, soft and slow",
+    "meditation": "zen stillness, breathing rhythm, spiritual calm, empty mind",
+    "spring":     "spring blossom, fresh air, hopeful, light and bright, new beginnings",
+    "autumn":     "autumn leaves falling, nostalgic beauty, wistful, melancholic",
+    "winter":     "cold quiet winter, sparse crystalline, snowfall, stillness",
+    "night":      "deep night, mysterious, dark and atmospheric, after midnight",
+}
+
+INSTRUMENT_STYLE: dict[str, str] = {
+    "piano":    "piano prominent, expressive piano melody leads",
+    "acoustic": "acoustic guitar prominent, fingerpicked strings, organic sound",
+    "electric": "electric guitar lead, guitar-driven, riffs and solos",
+    "synth":    "synthesizer dominant, rich layered synth texture",
+    "strings":  "string orchestra prominent, cello and violin, lush orchestral",
+    "brass":    "brass section featured, trumpet and trombone, bold horns",
+    "bass":     "deep prominent bass line, bass-forward mix, low-end focused",
+    "drums":    "drums and percussion prominent, rhythm-forward, strong beat",
+}
+
+TEMPO_STYLE: dict[str, str] = {
+    "slow":   "slow tempo 55-70 BPM, languid, unhurried, spacious",
+    "medium": "medium tempo 80-100 BPM, steady groove, comfortable pace",
+    "fast":   "fast upbeat tempo 115-135 BPM, energetic, driving, high energy",
+}
+
+
+def build_suno_style(genre_combo: str, fallback: str) -> str:
+    """Claude API로 조합에 맞는 Suno 스타일 프롬프트 생성.
+    실패 시 하드코딩 폴백."""
+    parts = genre_combo.split("+")
+    genre_key      = parts[0] if len(parts) > 0 else ""
+    mood_key       = parts[1] if len(parts) > 1 else ""
+    instrument_key = parts[2] if len(parts) > 2 else ""
+    tempo_key      = parts[3] if len(parts) > 3 else ""
+
+    # 선택된 항목 한국어 라벨
+    label_map = {
+        "lofi":"로파이", "jazz":"재즈", "citypop":"시티팝", "chillwave":"칠웨이브",
+        "ballad":"발라드", "kpop":"K-Pop", "aespa":"에스파(K-Pop)", "shinee":"샤이니(K-Pop)",
+        "snsd":"소녀시대(K-Pop)", "disco":"디스코", "rock":"록", "rnb":"R&B",
+        "swing":"스윙", "latin":"라틴/보사노바", "reggae":"레게", "electronic":"전자음악",
+        "newage":"뉴에이지", "cinematic":"시네마틱", "ambient":"앰비언트",
+        "heal":"힐링", "easylistening":"이지리스닝", "lullaby":"자장가",
+        "dawn":"새벽/심야", "drive":"드라이브", "cafe":"카페", "rain":"빗속",
+        "sunset":"노을", "travel":"여행", "study":"공부/집중", "sleep":"수면",
+        "meditation":"명상", "spring":"봄", "autumn":"가을", "winter":"겨울", "night":"심야/야간",
+        "piano":"피아노", "acoustic":"어쿠스틱기타", "electric":"일렉기타",
+        "synth":"신스", "strings":"현악", "brass":"관악", "bass":"베이스", "drums":"드럼",
+        "slow":"느리게 (55-70 BPM)", "medium":"보통 (80-100 BPM)", "fast":"빠르게 (115-135 BPM)",
+    }
+
+    selected = []
+    if genre_key:      selected.append(f"장르: {label_map.get(genre_key, genre_key)}")
+    if mood_key:       selected.append(f"분위기: {label_map.get(mood_key, mood_key)}")
+    if instrument_key: selected.append(f"주요 악기: {label_map.get(instrument_key, instrument_key)}")
+    if tempo_key:      selected.append(f"템포: {label_map.get(tempo_key, tempo_key)}")
+
+    combo_desc = ", ".join(selected) if selected else fallback
+
+    try:
+        import anthropic
+        from dotenv import load_dotenv
+        load_dotenv(dotenv_path=PROJECT_ROOT / ".env")
+
+        client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        msg = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=200,
+            messages=[{
+                "role": "user",
+                "content": f"""You are a music production expert who writes style prompts for Suno AI music generator.
+
+The user selected this combination:
+{combo_desc}
+
+Write a Suno AI style prompt (English only, comma-separated keywords) that will produce music matching this combination.
+- Include specific musical elements: genre, instrumentation, mood, tempo, production style, reference artists if relevant
+- Be specific and vivid — avoid generic words
+- 30-60 words maximum
+- Output ONLY the prompt, no explanation
+
+Example format: lo-fi hip hop, vinyl crackle, Rhodes piano, 70 BPM, dusty boom-bap, late night melancholy, warm tape hiss"""
+            }]
+        )
+        prompt = msg.content[0].text.strip()
+        print(f"[Claude] Suno style: {prompt}")
+        return prompt
+
+    except Exception as e:
+        print(f"[Claude] 스타일 생성 실패, 폴백 사용: {e}")
+        # 폴백: 하드코딩 조합
+        segments = []
+        if genre_key in GENRE_STYLE:
+            segments.append(GENRE_STYLE[genre_key])
+        else:
+            segments.append(fallback)
+        if mood_key in MOOD_STYLE:       segments.append(MOOD_STYLE[mood_key])
+        if instrument_key in INSTRUMENT_STYLE: segments.append(INSTRUMENT_STYLE[instrument_key])
+        if tempo_key in TEMPO_STYLE:     segments.append(TEMPO_STYLE[tempo_key])
+        return ", ".join(segments)
 
 # ── 인메모리 상태 ──────────────────────────────────────────────────────────────
 jobs: dict[str, dict] = {}
@@ -273,6 +363,7 @@ def analyze_series(series_name: str) -> dict:
 
 # ── 제목 자동 생성 ─────────────────────────────────────────────────────────────
 def auto_generate_title(concept: str, genre: str) -> str:
+    genre = genre.split("+")[0]  # 조합형에서 장르 키만 추출
     c = concept.lower()
 
     if any(k in c for k in ['시네마틱', 'cinematic', '영화']):
@@ -953,7 +1044,7 @@ async def run_pipeline(job_id: str, req: GenerateRequest):
         mode_label = "반주 모드" if req.instrumental else "보컬 모드"
         push_message(job_id, f"🎵 샘플 생성 중... (Suno AI) [{mode_label}]")
         sample_title = f"track_sample" if req.language and req.language.lower() != "korean" else f"{req.series_name}_sample"
-        suno_style = SUNO_STYLE_MAP.get(req.genre, req.concept)
+        suno_style = build_suno_style(req.genre, req.concept)
         sample_paths = await generate_one_batch(job_id, series_dir, sample_title, suno_style, 1,
                                                 instrumental=req.instrumental, lyrics=req.lyrics, language=req.language)
 
