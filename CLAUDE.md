@@ -62,6 +62,14 @@ music_ai_proj/
 │   └── full_run.py                ← 전체 자동화 실행
 ```
 
+## 서버 실행
+- 사용자가 "서버 켜줘", "실행해줘", "로컬 켜줘" 등 요청 시 즉시 실행:
+  ```
+  taskkill /F /IM python.exe 2>/dev/null; python -m uvicorn web.main:app --reload --port 8000 > server.log 2>&1 &
+  ```
+- 실행 후 `server.log` 확인해서 정상 기동 확인
+- 주소: http://localhost:8000
+
 ## 규칙
 - 영상은 MoviePy로 생성 (캡컷 사용 안 함)
 - 배경 이미지는 사용자가 PNG로 직접 준비해서 해당 폴더에 넣어줌

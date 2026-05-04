@@ -7,10 +7,12 @@ import re
 import sys
 import uuid
 import json
+import pickle
 import asyncio
 import shutil
 import glob
 import random
+import requests as http_requests
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
@@ -35,6 +37,55 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 MUSIC_FILE_ROOT.mkdir(parents=True, exist_ok=True)
 
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
+
+# ── 장르별 Suno 스타일 매핑 (영어 키워드로 음색을 완전히 다르게) ─────────────────
+SUNO_STYLE_MAP: dict[str, str] = {
+    "lofi":          "lo-fi hip hop, vinyl crackle, mellow jazzy chords, 70 BPM, dusty boom-bap drums, Rhodes piano, warm tape hiss, chill study beats",
+    "heal":          "ambient healing, soft fingerpicked guitar, gentle strings, nature ambience, 58 BPM, spa music, airy pads, peaceful, no drums",
+    "bass":          "dark bass music, deep sub-bass, moody synth pads, 85 BPM, underground electronic, dark atmospheric, minor key",
+    "dawn":          "late-night lo-fi, melancholic synth arpeggios, 65 BPM, 3am city lights, minimal sparse beats, introspective, slow tempo",
+    "drive":         "synthwave, cinematic highway drive, 110 BPM, electric guitar lead, pulsing bass, open-road energy, 80s retro synth",
+    "drive_summer":  "summer indie pop, bright upbeat acoustic, 120 BPM, carefree, beach vibes, jangling guitar, warm sunny production",
+    "drive_night":   "night drive synthwave, neon city, 100 BPM, dark pulsing synth, reverb electric guitar, moody cinematic, nocturnal",
+    "drive_hype":    "hype EDM, festival drop, 128 BPM, heavy kick, massive synth lead, adrenaline rush, energetic buildup",
+    "drive_chill":   "chill indie road trip, mellow acoustic, 90 BPM, laid-back groove, sunset vibe, fingerpicked guitar, relaxed",
+    "drive_rain":    "rainy day jazz, melancholic piano, 75 BPM, soft rainfall ambience, bossa nova sway, minor chord progression, reflective",
+    "kpop":          "K-pop dance, punchy synth bass, 130 BPM, powerful female group vocal, tight production, catchy hook, SM Entertainment style",
+    "aespa":         "K-pop cyberpunk, heavy EDM drop, glitchy synth distortion, 135 BPM, dark futuristic beat, intense bridge, aespa Next Level style",
+    "shinee":        "K-pop funk pop, neo soul groove, punchy synth bass, 125 BPM, sophisticated R&B, tight rhythmic hook, SHINee Sherlock style",
+    "snsd":          "K-pop bubbly dance pop, cheerful synth hook, 128 BPM, bright girl group energy, clean soprano vocal, Girls Generation Gee style",
+    "cafe":          "cafe background, bossa nova guitar, warm upright bass, 80 BPM, afternoon sunlight, relaxed jazz-pop, light percussion",
+    "cafe_jazz":     "cafe jazz, acoustic piano trio, brushed snare, 85 BPM, upright bass walk, intimate warm atmosphere, classic jazz swing",
+    "cinematic":     "cinematic orchestral, sweeping strings, 80 BPM, emotional film score, dramatic build, full orchestra, epic and powerful",
+    "cinematic_jazz":"film noir jazz, muted trumpet, moody piano, 75 BPM, saxophone melody, cinematic atmosphere, sophisticated noir",
+    "jazz":          "acoustic jazz, bebop piano, upright bass, brushed drums, 100 BPM, improvisation, classic jazz club, swinging",
+    "piano":         "solo classical piano, expressive dynamics, 70 BPM, intimate concert hall, Chopin-influenced, no other instruments",
+    "acoustic":      "acoustic guitar fingerpicking, 80 BPM, warm indie folk, singer-songwriter, organic, natural room sound",
+    "spring":        "spring acoustic pop, bright cheerful, 95 BPM, acoustic guitar, birds chirping, fresh blossom, light and airy",
+    "autumn":        "autumn folk, melancholic cello, 75 BPM, fingerpicked guitar, leaf-fall nostalgia, minor key, wistful",
+    "winter":        "winter ambient piano, sparse crystalline, 65 BPM, cold breath atmosphere, snowfall imagery, quiet peaceful",
+    "rain":          "rainy day ambient, piano melody, 70 BPM, soft rainfall texture, introspective, grey sky mood, cozy indoors",
+    "sleep":         "sleep music, deep ambient drone, 55 BPM, binaural soft pads, no melody, pure tone, peaceful lullaby",
+    "study":         "focus study music, minimal piano, 75 BPM, background ambient, no lyrics, no drums, clean concentration music",
+    "meditation":    "meditation, Tibetan singing bowls, ambient drone, 50 BPM, breathing rhythm, zen, spiritual, no melody",
+    "ambient":       "pure ambient electronic, atmospheric pads, 60 BPM, spacious reverb, drone texture, minimalist, Brian Eno style",
+    "sunset":        "sunset soft rock, warm acoustic guitar, 85 BPM, golden hour nostalgia, emotional, Americana influenced",
+    "travel":        "travel world folk, uplifting acoustic, 95 BPM, global instruments, sense of adventure, open sky",
+    "walk":          "morning walk indie pop, light and bouncy, 100 BPM, acoustic guitar strum, cheerful, fresh air energy",
+    "citypop":       "city pop, 80s Japanese funk, smooth bass groove, bright synth chord stab, 110 BPM, Mariya Takeuchi style, sophisticated",
+    "chillwave":     "chillwave, dreamy reverb synth, 85 BPM, hazy nostalgic, tape-saturated, summer memories, Washed Out style",
+    "swing":         "swing jazz big band, brass section, 140 BPM, walking bass, tight drums, upbeat 1940s dance hall energy",
+    "latin":         "bossa nova latin jazz, nylon guitar, 105 BPM, clave rhythm, warm tropical, Brazilian influenced, samba groove",
+    "reggae":        "roots reggae, offbeat skank guitar, deep bass groove, 80 BPM, Jamaican rhythm, relaxed, laid-back",
+    "disco":         "disco funk, four-on-the-floor kick, 120 BPM, string section stab, wah guitar, 70s groove, danceable",
+    "rock":          "indie rock, distorted guitar riff, 120 BPM, live drums, bass, energetic, alternative rock, gritty",
+    "electronic":    "electronic dance, progressive synth, 125 BPM, punchy kick, layered pads, modern club production",
+    "rnb":           "neo soul R&B, warm soulful, 85 BPM, smooth bass, Rhodes chord, groove pocket, intimate vocal",
+    "newage":        "new age piano, 65 BPM, ambient pads, peaceful spiritual, gentle, George Winston style, no percussion",
+    "ballad":        "emotional pop ballad, piano and strings, 70 BPM, heartfelt, slow build, orchestral swell, tender",
+    "lullaby":       "gentle lullaby, music box melody, 55 BPM, soft plucked strings, soothing, nursery, tender and quiet",
+    "easylistening": "easy listening, smooth jazz guitar, 85 BPM, light background, pleasant, hotel lobby, mellow saxophone",
+}
 
 # ── 인메모리 상태 ──────────────────────────────────────────────────────────────
 jobs: dict[str, dict] = {}
@@ -67,6 +118,11 @@ class TitleRequest(BaseModel):
 
 class TrackOrderRequest(BaseModel):
     ordered_paths: list[str]
+
+
+class ApproveRequest(BaseModel):
+    selected_index: int = 0
+    next_lyrics: str = ""
 
 
 # ── 시리즈명 분석 ──────────────────────────────────────────────────────────────
@@ -153,6 +209,60 @@ def analyze_series(series_name: str) -> dict:
     elif any(k in name for k in ['앰비언트', 'ambient', '공간']):
         concept = "공간을 채우는 아름다운 앰비언트 사운드, 몽환적이고 넓은 느낌"
         genre   = "ambient"
+    elif any(k in name for k in ['에스파', 'aespa']):
+        concept = "K-pop, cyberpunk synth pop, heavy EDM drop, dark futuristic beat, glitchy distortion, powerful female vocal, 135 BPM, intense chorus, aespa Next Level style, SM Entertainment"
+        genre   = "aespa"
+    elif any(k in name for k in ['샤이니', 'shinee']):
+        concept = "K-pop, funky dance pop, neo soul groove, sophisticated R&B, punchy synth bass, tight rhythm, catchy hook, upbeat 125 BPM, SHINee Sherlock style, polished SM production"
+        genre   = "shinee"
+    elif any(k in name for k in ['소녀시대', 'snsd', 'girls generation', 'girlsgeneration']):
+        concept = "K-pop, bright bubbly dance pop, cheerful synth hook, energetic chorus, clean girl group vocal, catchy upbeat 128 BPM, Girls Generation Gee style, fun and lively SM pop"
+        genre   = "snsd"
+    elif any(k in name for k in ['sm mix', 'sm_mix', 'sm스타일', 'kpop mix', '케이팝']):
+        concept = "K-pop, high energy dance pop, heavy synth drop, powerful female vocal, catchy hook, upbeat 130 BPM, aespa cyberpunk EDM meets SHINee funk pop meets Girls Generation bright pop, SM Entertainment style, polished production, dynamic chorus"
+        genre   = "kpop"
+    elif any(k in name for k in ['시티팝', 'city pop', 'citypop']):
+        concept = "80년대 일본 시티팝 감성, 세련되고 도시적인 사운드"
+        genre   = "citypop"
+    elif any(k in name for k in ['칠웨이브', 'chillwave', 'chill wave']):
+        concept = "몽환적이고 나른한 칠웨이브 사운드, 여름 추억 감성"
+        genre   = "chillwave"
+    elif any(k in name for k in ['스윙', 'swing', '빅밴드', 'big band']):
+        concept = "신나는 스윙 재즈, 빅밴드 에너지"
+        genre   = "swing"
+    elif any(k in name for k in ['라틴', 'latin', '보사노바', 'bossa nova']):
+        concept = "따뜻한 라틴 재즈, 보사노바 리듬"
+        genre   = "latin"
+    elif any(k in name for k in ['레게', 'reggae']):
+        concept = "편안한 레게 리듬, 자메이카 바이브"
+        genre   = "reggae"
+    elif any(k in name for k in ['디스코', 'disco']):
+        concept = "70년대 디스코 펑크, 신나는 댄스 비트"
+        genre   = "disco"
+    elif any(k in name for k in ['록', 'rock', '인디록', 'indie rock']):
+        concept = "에너지 넘치는 인디록 사운드"
+        genre   = "rock"
+    elif any(k in name for k in ['r&b', 'rnb', 'r and b', '알앤비']):
+        concept = "따뜻하고 감성적인 R&B 소울"
+        genre   = "rnb"
+    elif any(k in name for k in ['뉴에이지', 'new age', 'newage']):
+        concept = "영적이고 고요한 뉴에이지 음악"
+        genre   = "newage"
+    elif any(k in name for k in ['발라드', 'ballad']):
+        concept = "감성적인 팝 발라드, 피아노와 현악"
+        genre   = "ballad"
+    elif any(k in name for k in ['이지리스닝', 'easy listening', 'easylistening']):
+        concept = "편안한 이지리스닝, 가벼운 배경음악"
+        genre   = "easylistening"
+    elif any(k in name for k in ['자장가', 'lullaby']):
+        concept = "부드러운 자장가, 잠들기 좋은 음악"
+        genre   = "lullaby"
+    elif any(k in name for k in ['명상', 'meditation', '요가', 'yoga']):
+        concept = "고요한 명상 음악, 마음을 비우는 소리"
+        genre   = "meditation"
+    elif any(k in name for k in ['전자음악', 'electronic', 'edm']):
+        concept = "모던 전자음악, 댄스 일렉트로닉"
+        genre   = "electronic"
     else:
         concept = f"{series_name} 분위기에 맞는 감성적이고 잔잔한 음악"
         genre   = "lofi"
@@ -336,6 +446,42 @@ def auto_generate_title(concept: str, genre: str) -> str:
             "공간이 달라지는 것 같은 앰비언트", "아무것도 하지 않아도 좋은 시간",
             "소리가 공기처럼 퍼져나갈 때", "아무도 없는 방에서 혼자 듣는 음악",
         ]
+    elif genre == 'aespa' or any(k in c for k in ['cyberpunk', 'aespa', '에스파', 'synth pop', 'futuristic']):
+        emoji = '🤖'
+        templates = [
+            "현실과 가상의 경계에서", "디지털 세계로 초대합니다",
+            "미래에서 온 비트", "사이버 세계에 빠져드는 밤",
+            "현실을 초월한 사운드", "AI가 만든 미래의 음악",
+            "글리치 속에 숨겨진 감성", "메타버스 속 나만의 플레이리스트",
+            "미래형 K-pop, 지금 바로 재생", "디지털 감성 폭발하는 플레이리스트",
+        ]
+    elif genre == 'shinee' or any(k in c for k in ['shinee', '샤이니', 'funk pop', 'neo soul', 'sophisticated']):
+        emoji = '✨'
+        templates = [
+            "세련된 감각이 흐르는 밤", "어른스러운 팝의 정석",
+            "귀에 꽂히는 세련미", "펑크와 소울이 만나는 지점",
+            "트렌디하지만 시간이 지나도 좋은 음악", "감각적인 비트 위에서",
+            "스타일리시한 K-pop 플레이리스트", "멋있게 살고 싶은 날 트는 음악",
+            "도시적인 감성, 세련된 사운드", "매끄럽게 흘러가는 그루브",
+        ]
+    elif genre == 'snsd' or any(k in c for k in ['snsd', '소녀시대', 'girl group', 'girls generation', 'cheerful']):
+        emoji = '🌟'
+        templates = [
+            "신나고 설레는 그 느낌", "듣는 순간 기분 좋아지는 음악",
+            "에너지 충전이 필요한 순간", "밝고 캐치한 K-pop 플레이리스트",
+            "오늘도 힘차게 시작하는 하루", "기분 업! 에너지 업!",
+            "걸그룹 감성 가득한 플레이리스트", "볼륨 올리고 싶어지는 음악",
+            "웃음이 나오는 이유 없는 설렘", "신나서 발 구르게 되는 음악",
+        ]
+    elif genre == 'kpop' or any(k in c for k in ['kpop', 'k-pop', 'sm entertainment', 'sm mix']):
+        emoji = '🎤'
+        templates = [
+            "SM 감성이 담긴 플레이리스트", "K-pop의 정수를 담아서",
+            "에스파부터 소녀시대까지, SM의 모든 것", "K-pop 좋아하는 사람 모여라",
+            "SM 스타일로 채우는 한 시간", "K-pop AI 커버 플레이리스트",
+            "AI가 재해석한 K-pop 사운드", "장르를 초월한 K-pop 믹스",
+            "K-pop 최전선의 사운드", "SM 엔터 감성 AI 음악 모음",
+        ]
     elif any(k in c for k in ['힐링', '치유']):
         emoji = '🍃'
         templates = [
@@ -354,6 +500,86 @@ def auto_generate_title(concept: str, genre: str) -> str:
             "아무 생각 없이 듣기 좋은 음악", "퇴근하고 바로 틀어두는 음악",
             "혼자 있을 때 가장 잘 어울리는 음악", "그냥 흘러가도 괜찮은 하루",
         ]
+    elif genre == 'citypop':
+        emoji = '🌆'
+        templates = [
+            "도시가 빛나는 밤, 시티팝 한 곡", "80년대 일본 감성이 흐르는 밤",
+            "네온사인 아래 걷고 싶은 밤", "도시 한복판에서 혼자인 시간",
+            "시티팝으로 채우는 세련된 오후", "저 빌딩 불빛처럼 반짝이는 음악",
+        ]
+    elif genre == 'chillwave':
+        emoji = '🌊'
+        templates = [
+            "기억 속 어느 여름날처럼", "몽환적인 파도 위에서",
+            "흐릿하고 나른한 오후의 음악", "테이프가 늘어지는 것 같은 감성",
+            "칠웨이브로 채우는 게으른 오후", "기억이 왜곡되는 것 같은 사운드",
+        ]
+    elif genre == 'swing':
+        emoji = '🎺'
+        templates = [
+            "신나는 스윙 재즈, 발이 절로 움직여", "빅밴드가 연주하는 설레는 밤",
+            "1940년대 재즈클럽으로 떠나는 여행", "재즈가 살아있는 그 시절처럼",
+        ]
+    elif genre == 'latin':
+        emoji = '🌴'
+        templates = [
+            "보사노바가 흐르는 따뜻한 오후", "라틴 리듬에 몸을 맡겨",
+            "브라질의 여름을 담은 플레이리스트", "기타 선율에 흔들리는 오후",
+        ]
+    elif genre == 'reggae':
+        emoji = '🏝️'
+        templates = [
+            "레게 리듬에 몸을 맡기는 오후", "자메이카 바이브, 아무 걱정 없이",
+            "느릿느릿 흘러가도 좋은 시간", "레게가 있으면 다 괜찮아",
+        ]
+    elif genre == 'disco':
+        emoji = '💿'
+        templates = [
+            "디스코볼이 돌아가는 밤", "70년대 댄스플로어로 초대합니다",
+            "펑키한 베이스에 몸이 저절로", "오늘 밤은 디스코로 채워",
+        ]
+    elif genre == 'rock':
+        emoji = '🎸'
+        templates = [
+            "기타 리프가 터지는 순간", "록이 필요한 하루",
+            "볼륨 올리고 싶은 날의 플레이리스트", "에너지 넘치는 록 한 판",
+        ]
+    elif genre == 'rnb':
+        emoji = '🎵'
+        templates = [
+            "소울 가득한 R&B 오후", "그루브에 몸을 실어",
+            "따뜻하고 감성적인 R&B 모음", "밤이 깊어질수록 좋아지는 음악",
+        ]
+    elif genre == 'newage':
+        emoji = '🌠'
+        templates = [
+            "마음이 고요해지는 뉴에이지", "우주처럼 넓은 소리",
+            "영적인 평화가 흐르는 플레이리스트", "아무 생각 없이 흘러가는 음악",
+        ]
+    elif genre == 'ballad':
+        emoji = '🎵'
+        templates = [
+            "감성 발라드 한 곡이 필요한 밤", "피아노 선율에 눈물이 날 것 같아",
+            "마음을 건드리는 발라드 모음", "오늘 밤은 발라드가 딱이야",
+        ]
+    elif genre == 'easylistening':
+        emoji = '🎶'
+        templates = [
+            "편안하게 흘려듣기 좋은 음악", "아무 생각 없이 틀어두는 플레이리스트",
+            "배경음악으로 완벽한 이지리스닝", "귀가 편안해지는 음악 모음",
+        ]
+    elif genre == 'lullaby':
+        emoji = '🌛'
+        templates = [
+            "오늘 밤 잠들기 좋은 자장가", "꿈 나라로 데려다줄 음악",
+            "눈이 스르르 감기는 플레이리스트", "아기처럼 잠들고 싶은 밤",
+        ]
+    elif genre == 'electronic':
+        emoji = '🎛️'
+        templates = [
+            "전자음악이 울려 퍼지는 밤", "사운드가 공간을 가득 채울 때",
+            "일렉트로닉 사운드로 채우는 오늘", "현대적인 전자음악 플레이리스트",
+        ]
     else:
         emoji = '🍃'
         templates = [
@@ -370,11 +596,15 @@ def auto_generate_title(concept: str, genre: str) -> str:
 # ── 설명 생성 ──────────────────────────────────────────────────────────────────
 def generate_description(concept: str, genre: str, tracklist: list[dict] = None) -> str:
     openers = {
-        "lofi":  "🎧 오늘도 수고한 나를 위한 로파이.",
-        "heal":  "🍃 지친 하루 끝에 듣는 음악.",
-        "bass":  "🌑 무거운 베이스, 혼자만의 시간.",
-        "dawn":  "🌙 아무도 없는 새벽, 혼자만의 감성.",
-        "drive": "🚗 아무 생각 없이 달릴 때.",
+        "lofi":   "🎧 오늘도 수고한 나를 위한 로파이.",
+        "heal":   "🍃 지친 하루 끝에 듣는 음악.",
+        "bass":   "🌑 무거운 베이스, 혼자만의 시간.",
+        "dawn":   "🌙 아무도 없는 새벽, 혼자만의 감성.",
+        "drive":  "🚗 아무 생각 없이 달릴 때.",
+        "aespa":  "🤖 현실과 가상의 경계, AI가 만든 사이버 K-pop.",
+        "shinee": "✨ 세련된 펑크팝, 시간이 지나도 빛나는 사운드.",
+        "snsd":   "🌟 밝고 에너지 넘치는 걸그룹 K-pop 플레이리스트.",
+        "kpop":   "🎤 SM 스타일로 재해석한 AI K-pop 컬렉션.",
     }
     opener = openers.get(genre, "🎵 당신을 위한 플레이리스트.")
     short  = concept[:40] + ("..." if len(concept) > 40 else "")
@@ -460,14 +690,26 @@ def load_job_meta(series_dir: Path) -> dict | None:
         return json.load(f)
 
 
+def _finalize_selected(selected: str) -> str:
+    """선택된 트랙 파일명에서 _숫자 접미사 제거. 충돌 시 원본 경로 반환."""
+    p = Path(selected)
+    clean_stem = re.sub(r'_\d+$', '', p.stem)
+    clean_path = p.parent / f"{clean_stem}{p.suffix}"
+    if clean_path != p and not clean_path.exists():
+        p.rename(clean_path)
+        return str(clean_path)
+    return selected
+
+
 # ── 트랙 순서 지정 → 영상 → 업로드 공통 파이프라인 ────────────────────────────
 async def run_post_generation(job_id: str, series_dir: Path,
                                title: str, concept: str, genre: str,
-                               image_path: str | None):
+                               image_path: str | None,
+                               selected_paths: list[str] | None = None):
     loop = asyncio.get_event_loop()
 
     # ── 트랙 순서 지정 대기 ──────────────────────────────────────────────────────
-    track_list = sorted(glob.glob(str(series_dir / "*.mp3")))
+    track_list = selected_paths if selected_paths else sorted(glob.glob(str(series_dir / "*.mp3")))
     jobs[job_id]["tracks"] = track_list
     jobs[job_id]["status"] = "tracks_ready"
     push_message(job_id, f"🎼 트랙 순서를 지정해주세요 ({len(track_list)}개)")
@@ -579,10 +821,91 @@ async def run_post_generation(job_id: str, series_dir: Path,
             push_message(job_id, "  → 업로드 완료!")
         except Exception as e:
             push_message(job_id, f"  ⚠️ 업로드 실패: {e}")
+            jobs[job_id]["upload_context"] = {
+                "video_path": video_path,
+                "tracklist":  tracklist,
+                "title":      title,
+                "concept":    concept,
+                "genre":      genre,
+                "image_path": image_path,
+            }
+            jobs[job_id]["status"] = "upload_failed"
+            push_message(job_id, "🔁 업로드 재시도 가능 — 미리보기 화면에서 다시 시도해주세요")
+            return
 
     jobs[job_id]["status"]      = "done"
     jobs[job_id]["youtube_url"] = youtube_url
     push_message(job_id, f"✅ 완료!{' ' + youtube_url if youtube_url else ''}")
+
+
+# ── 업로드 재시도 (미리보기 → 업로드만 다시 실행) ───────────────────────────────
+async def run_upload_retry(job_id: str):
+    ctx = jobs[job_id].get("upload_context")
+    if not ctx:
+        jobs[job_id]["status"] = "error"
+        jobs[job_id]["error"]  = "업로드 컨텍스트 없음"
+        push_message(job_id, "❌ 업로드 컨텍스트 없음")
+        return
+
+    jobs[job_id]["status"]    = "running"
+    jobs[job_id]["cancelled"] = False
+    loop = asyncio.get_event_loop()
+
+    video_path = ctx["video_path"]
+    tracklist  = ctx["tracklist"]
+    title      = ctx["title"]
+    concept    = ctx["concept"]
+    genre      = ctx["genre"]
+    image_path = ctx["image_path"]
+
+    # ── 미리보기 ─────────────────────────────────────────────────────────────────
+    thumb_url = None
+    if image_path and image_path.startswith(str(UPLOAD_DIR)):
+        thumb_url = f"/uploads/{Path(image_path).name}"
+
+    desc = generate_description(concept, genre, tracklist)
+    jobs[job_id]["preview"] = {
+        "title":         title,
+        "description":   desc,
+        "thumbnail_url": thumb_url,
+    }
+    jobs[job_id]["status"] = "preview_ready"
+    push_message(job_id, "👁️ 미리보기 준비됨 — 확인 후 업로드해주세요")
+
+    event = asyncio.Event()
+    confirm_events[job_id] = event
+    await event.wait()
+
+    if jobs[job_id].get("cancelled"):
+        push_message(job_id, "⛔ 업로드 취소됨")
+        jobs[job_id]["status"] = "cancelled"
+        return
+
+    # ── 업로드 ───────────────────────────────────────────────────────────────────
+    push_message(job_id, "📤 유튜브 업로드 중...")
+
+    def _upload_retry():
+        try:    from scripts.upload_youtube import upload_video
+        except: from upload_youtube import upload_video
+        vid_id = upload_video(
+            video_path=video_path,
+            title=title,
+            genre=genre,
+            description=generate_description(concept, genre, tracklist),
+            thumbnail_path=image_path if image_path and os.path.exists(image_path) else None,
+        )
+        return f"https://www.youtube.com/watch?v={vid_id}"
+
+    try:
+        youtube_url = await loop.run_in_executor(None, _upload_retry)
+        push_message(job_id, "  → 업로드 완료!")
+        jobs[job_id]["status"]      = "done"
+        jobs[job_id]["youtube_url"] = youtube_url
+        push_message(job_id, f"✅ 완료! {youtube_url}")
+    except Exception as e:
+        push_message(job_id, f"  ⚠️ 업로드 실패: {e}")
+        jobs[job_id]["status"] = "upload_failed"
+        push_message(job_id, "🔁 업로드 재시도 가능 — 미리보기 화면에서 다시 시도해주세요")
 
 
 # ── 파이프라인 ─────────────────────────────────────────────────────────────────
@@ -629,14 +952,16 @@ async def run_pipeline(job_id: str, req: GenerateRequest):
         # ── 1. 샘플 1배치 생성 (2트랙) ──────────────────────────────────────────
         mode_label = "반주 모드" if req.instrumental else "보컬 모드"
         push_message(job_id, f"🎵 샘플 생성 중... (Suno AI) [{mode_label}]")
-        sample_title = f"{req.series_name}_sample"
-        sample_paths = await generate_one_batch(job_id, series_dir, sample_title, req.concept, 1,
+        sample_title = f"track_sample" if req.language and req.language.lower() != "korean" else f"{req.series_name}_sample"
+        suno_style = SUNO_STYLE_MAP.get(req.genre, req.concept)
+        sample_paths = await generate_one_batch(job_id, series_dir, sample_title, suno_style, 1,
                                                 instrumental=req.instrumental, lyrics=req.lyrics, language=req.language)
 
         if not sample_paths:
             raise RuntimeError("샘플 MP3 다운로드 실패")
 
         # 샘플 승인 루프
+        sample_lyrics = req.lyrics  # 이 배치에 쓸 가사
         while True:
             jobs[job_id]["sample_path"]  = sample_paths[0]
             jobs[job_id]["sample_paths"] = sample_paths
@@ -650,17 +975,22 @@ async def run_pipeline(job_id: str, req: GenerateRequest):
             if jobs[job_id].get("sample_approved"):
                 idx = jobs[job_id].get("selected_track_index", 0)
                 selected = sample_paths[idx] if idx < len(sample_paths) else sample_paths[0]
-                all_mp3_paths.append(selected)
                 for i, p in enumerate(sample_paths):
                     if i != idx and os.path.exists(p):
                         os.remove(p)
+                selected = _finalize_selected(selected)
+                all_mp3_paths.append(selected)
+                _m = load_job_meta(series_dir) or {}
+                _m["selected_paths"] = all_mp3_paths
+                save_job_meta(series_dir, _m)
+                current_lyrics = jobs[job_id].get("next_lyrics", "")  # 다음 배치 가사
                 push_message(job_id, "✅ 샘플 승인 — 나머지 음악 생성 시작")
                 break
             else:
                 push_message(job_id, "🔄 샘플 다시 생성 중...")
                 jobs[job_id]["status"] = "running"
-                sample_paths = await generate_one_batch(job_id, series_dir, sample_title, req.concept, 1,
-                                                        instrumental=req.instrumental, lyrics=req.lyrics, language=req.language)
+                sample_paths = await generate_one_batch(job_id, series_dir, sample_title, suno_style, 1,
+                                                        instrumental=req.instrumental, lyrics=sample_lyrics, language=req.language)
                 if not sample_paths:
                     raise RuntimeError("재생성 실패")
 
@@ -668,13 +998,14 @@ async def run_pipeline(job_id: str, req: GenerateRequest):
         total_batches = req.extra_tracks + 1  # 샘플 포함 전체 배치 수
         for i in range(req.extra_tracks):
             batch_num = i + 2  # 샘플이 1번이므로 2번부터
-            t_title = f"{safe_series_name}_트랙{i+1}"
-            push_message(job_id, f"🎵 트랙 {batch_num}/{total_batches} 생성 중...")
+            t_title = f"track_{i+1}" if req.language and req.language.lower() != "korean" else f"{safe_series_name}_트랙{i+1}"
+            batch_lyrics = current_lyrics  # 이 배치에 쓸 가사
+            push_message(job_id, f"🎵 트랙 {batch_num}/{total_batches} 생성 중...{'(가사 직접 입력)' if batch_lyrics else ''}")
             jobs[job_id]["status"] = "running"
 
             # 생성 (재시도 포함)
-            track_paths = await generate_one_batch(job_id, series_dir, t_title, req.concept, batch_num,
-                                                   instrumental=req.instrumental, lyrics=req.lyrics, language=req.language)
+            track_paths = await generate_one_batch(job_id, series_dir, t_title, suno_style, batch_num,
+                                                   instrumental=req.instrumental, lyrics=batch_lyrics, language=req.language)
             if not track_paths:
                 push_message(job_id, f"  ⚠️ 트랙 {batch_num} 생성 실패 — 스킵")
                 continue
@@ -695,17 +1026,22 @@ async def run_pipeline(job_id: str, req: GenerateRequest):
                 if jobs[job_id].get("sample_approved"):
                     idx = jobs[job_id].get("selected_track_index", 0)
                     selected = track_paths[idx] if idx < len(track_paths) else track_paths[0]
-                    all_mp3_paths.append(selected)
                     for i, p in enumerate(track_paths):
                         if i != idx and os.path.exists(p):
                             os.remove(p)
+                    selected = _finalize_selected(selected)
+                    all_mp3_paths.append(selected)
+                    _m = load_job_meta(series_dir) or {}
+                    _m["selected_paths"] = all_mp3_paths
+                    save_job_meta(series_dir, _m)
+                    current_lyrics = jobs[job_id].get("next_lyrics", "")  # 다음 배치 가사
                     push_message(job_id, f"✅ 트랙 {batch_num} 승인")
                     break
                 else:
                     push_message(job_id, f"🔄 트랙 {batch_num} 다시 생성 중...")
                     jobs[job_id]["status"] = "running"
                     track_paths = await generate_one_batch(job_id, series_dir, t_title, req.concept, batch_num,
-                                                           instrumental=req.instrumental, lyrics=req.lyrics, language=req.language)
+                                                           instrumental=req.instrumental, lyrics=batch_lyrics, language=req.language)
                     if not track_paths:
                         push_message(job_id, f"  ⚠️ 재생성 실패 — 스킵")
                         break
@@ -716,7 +1052,8 @@ async def run_pipeline(job_id: str, req: GenerateRequest):
             raise RuntimeError("생성된 MP3가 없습니다. 나중에 다시 시도해주세요.")
 
         await run_post_generation(job_id, series_dir,
-                                   req.title, req.concept, req.genre, image_path)
+                                   req.title, req.concept, req.genre, image_path,
+                                   selected_paths=all_mp3_paths)
 
     except Exception as e:
         jobs[job_id]["status"] = "error"
@@ -750,71 +1087,111 @@ async def run_resume_pipeline(job_id: str, series_dir: Path, meta: dict):
         image_path = png_files[0] if png_files else None
 
     try:
-        # ── 저장된 콘셉트 표시 ───────────────────────────────────────────────────
         push_message(job_id, f"📋 이전 작업 콘셉트: {concept}")
         push_message(job_id, f"🎵 장르: {genre}  |  제목: {title}")
 
-        # ── 재개 샘플 생성 (파일명 충돌 방지: _재개샘플) ────────────────────────
-        push_message(job_id, "🎵 샘플 생성 중... (Suno AI)")
-        resume_sample_title = f"{series_name}_재개샘플"
-        sample_paths = await generate_one_batch(job_id, series_dir, resume_sample_title, concept, 0,
-                                                instrumental=instrumental, lyrics=lyrics, language=language)
+        # ── 저장된 선택 트랙 복원 ───────────────────────────────────────────────
+        all_mp3_paths = [p for p in meta.get("selected_paths", []) if os.path.exists(p)]
 
-        if not sample_paths:
-            raise RuntimeError("샘플 MP3 다운로드 실패")
-
-        # 샘플 승인 루프
-        while True:
-            jobs[job_id]["sample_path"] = sample_paths[0]
-            jobs[job_id]["status"] = "sample_ready"
-            push_message(job_id, "👂 샘플 준비됨 — 들어보고 확인해주세요")
-
-            event = asyncio.Event()
-            sample_events[job_id] = event
-            await event.wait()
-
-            if jobs[job_id].get("sample_approved"):
-                push_message(job_id, "✅ 샘플 승인 — 나머지 음악 생성 시작")
-                jobs[job_id]["status"] = "running"
-                break
-            else:
-                push_message(job_id, "🔄 샘플 다시 생성 중...")
-                jobs[job_id]["status"] = "running"
-                sample_paths = await generate_one_batch(job_id, series_dir, resume_sample_title, concept, 0,
-                                                        instrumental=instrumental, lyrics=lyrics, language=language)
-                if not sample_paths:
-                    raise RuntimeError("재생성 실패")
-
-        # ── 기존 트랙 확인 후 나머지 생성 ───────────────────────────────────────
-        existing_mp3s = sorted(glob.glob(str(series_dir / "*.mp3")))
-        push_message(job_id, f"📁 현재 트랙: {len(existing_mp3s)}개 / 목표 {target_count}개")
-
-        remaining = max(0, target_count - len(existing_mp3s))
-        remaining_batches = remaining // 2
-
-        if remaining_batches > 0:
-            push_message(job_id, f"🎵 나머지 음악 생성 중... ({remaining_batches}배치)")
-            failed = 0
-            for i in range(remaining_batches):
-                batch_num   = len(existing_mp3s) // 2 + i + 1
-                track_title = f"{series_name}_재개트랙{batch_num}"
-                try:
-                    paths = await generate_one_batch(job_id, series_dir, track_title, concept, batch_num,
-                                                     instrumental=instrumental, lyrics=lyrics, language=language)
-                    existing_mp3s.extend(paths)
-                    push_message(job_id, f"  → 배치 {i+1}/{remaining_batches} 완료 ({len(paths)}개)")
-                except Exception as e:
-                    failed += 1
-                    push_message(job_id, f"  ⚠️ 배치 {i+1} 실패 — 스킵 ({e})")
-            if failed:
-                push_message(job_id, f"  ⚠️ {failed}개 배치 실패, {len(existing_mp3s)}개로 계속 진행")
+        if all_mp3_paths:
+            push_message(job_id, f"📂 이전 진행 복원: {len(all_mp3_paths)}개 트랙 확인됨")
         else:
-            push_message(job_id, f"  → 이미 모든 트랙 보유 ({len(existing_mp3s)}개) — 트랙 순서 지정으로 이동")
+            # 저장된 진행 없음 — 스타일 확인용 샘플 A/B 생성
+            push_message(job_id, "🎵 샘플 생성 중... (Suno AI)")
+            resume_sample_title = f"{series_name}_재개샘플"
+            sample_paths = await generate_one_batch(job_id, series_dir, resume_sample_title, concept, 0,
+                                                    instrumental=instrumental, lyrics=lyrics, language=language)
+            if not sample_paths:
+                raise RuntimeError("샘플 MP3 다운로드 실패")
 
-        if not existing_mp3s:
+            while True:
+                jobs[job_id]["sample_path"]  = sample_paths[0]
+                jobs[job_id]["sample_paths"] = sample_paths
+                jobs[job_id]["status"] = "sample_ready"
+                push_message(job_id, "👂 샘플 준비됨 — A/B 들어보고 선택해주세요")
+
+                event = asyncio.Event()
+                sample_events[job_id] = event
+                await event.wait()
+
+                if jobs[job_id].get("sample_approved"):
+                    idx = jobs[job_id].get("selected_track_index", 0)
+                    selected = sample_paths[idx] if idx < len(sample_paths) else sample_paths[0]
+                    for i, p in enumerate(sample_paths):
+                        if i != idx and os.path.exists(p):
+                            os.remove(p)
+                    selected = _finalize_selected(selected)
+                    all_mp3_paths.append(selected)
+                    _m = load_job_meta(series_dir) or {}
+                    _m["selected_paths"] = all_mp3_paths
+                    save_job_meta(series_dir, _m)
+                    push_message(job_id, "✅ 샘플 승인 — 나머지 음악 생성 시작")
+                    jobs[job_id]["status"] = "running"
+                    break
+                else:
+                    push_message(job_id, "🔄 샘플 다시 생성 중...")
+                    jobs[job_id]["status"] = "running"
+                    sample_paths = await generate_one_batch(job_id, series_dir, resume_sample_title, concept, 0,
+                                                            instrumental=instrumental, lyrics=lyrics, language=language)
+                    if not sample_paths:
+                        raise RuntimeError("재생성 실패")
+
+        # ── 나머지 트랙 — A/B 선택 포함 ─────────────────────────────────────────
+        remaining = max(0, target_count - len(all_mp3_paths))
+        push_message(job_id, f"📁 현재 {len(all_mp3_paths)}개 / 목표 {target_count}개 — {remaining}개 더 생성")
+
+        for i in range(remaining):
+            batch_num   = len(all_mp3_paths) + 1
+            track_title = f"{series_name}_재개트랙{batch_num}"
+            push_message(job_id, f"🎵 트랙 {batch_num}/{target_count} 생성 중...")
+            jobs[job_id]["status"] = "running"
+
+            track_paths = await generate_one_batch(job_id, series_dir, track_title, concept, batch_num,
+                                                   instrumental=instrumental, lyrics=lyrics, language=language)
+            if not track_paths:
+                push_message(job_id, f"  ⚠️ 트랙 {batch_num} 생성 실패 — 스킵")
+                continue
+
+            while True:
+                jobs[job_id]["sample_path"]  = track_paths[0]
+                jobs[job_id]["sample_paths"] = track_paths
+                jobs[job_id]["status"] = "sample_ready"
+                jobs[job_id]["track_num"]    = batch_num
+                jobs[job_id]["total_tracks"] = target_count
+                push_message(job_id, f"👂 트랙 {batch_num}/{target_count} 준비됨 — A/B 선택해주세요")
+
+                event = asyncio.Event()
+                sample_events[job_id] = event
+                await event.wait()
+
+                if jobs[job_id].get("sample_approved"):
+                    idx = jobs[job_id].get("selected_track_index", 0)
+                    selected = track_paths[idx] if idx < len(track_paths) else track_paths[0]
+                    for j, p in enumerate(track_paths):
+                        if j != idx and os.path.exists(p):
+                            os.remove(p)
+                    selected = _finalize_selected(selected)
+                    all_mp3_paths.append(selected)
+                    _m = load_job_meta(series_dir) or {}
+                    _m["selected_paths"] = all_mp3_paths
+                    save_job_meta(series_dir, _m)
+                    push_message(job_id, f"✅ 트랙 {batch_num} 승인")
+                    break
+                else:
+                    push_message(job_id, f"🔄 트랙 {batch_num} 다시 생성 중...")
+                    jobs[job_id]["status"] = "running"
+                    track_paths = await generate_one_batch(job_id, series_dir, track_title, concept, batch_num,
+                                                           instrumental=instrumental, lyrics=lyrics, language=language)
+                    if not track_paths:
+                        push_message(job_id, f"  ⚠️ 재생성 실패 — 스킵")
+                        break
+
+        if not all_mp3_paths:
             raise RuntimeError("재개할 MP3가 없습니다.")
 
-        await run_post_generation(job_id, series_dir, title, concept, genre, image_path)
+        push_message(job_id, f"  → 총 {len(all_mp3_paths)}개 MP3 생성 완료")
+        await run_post_generation(job_id, series_dir, title, concept, genre, image_path,
+                                   selected_paths=all_mp3_paths)
 
     except Exception as e:
         jobs[job_id]["status"] = "error"
@@ -928,11 +1305,12 @@ async def get_sample(job_id: str, index: int = 0):
 
 
 @app.post("/approve-sample/{job_id}")
-async def approve_sample(job_id: str, selected_index: int = 0):
+async def approve_sample(job_id: str, req: ApproveRequest = ApproveRequest()):
     if job_id not in jobs:
         raise HTTPException(404)
     jobs[job_id]["sample_approved"] = True
-    jobs[job_id]["selected_track_index"] = selected_index
+    jobs[job_id]["selected_track_index"] = req.selected_index
+    jobs[job_id]["next_lyrics"] = req.next_lyrics
     if job_id in sample_events:
         sample_events[job_id].set()
     return {"ok": True}
@@ -1006,6 +1384,16 @@ async def cancel_upload(job_id: str):
     return {"ok": True}
 
 
+@app.post("/retry-upload/{job_id}")
+async def retry_upload(job_id: str, background_tasks: BackgroundTasks):
+    if job_id not in jobs:
+        raise HTTPException(404)
+    if jobs[job_id].get("status") != "upload_failed":
+        raise HTTPException(400, "업로드 실패 상태가 아닙니다")
+    background_tasks.add_task(run_upload_retry, job_id)
+    return {"ok": True}
+
+
 @app.get("/progress/{job_id}")
 async def progress(job_id: str):
     if job_id not in jobs:
@@ -1067,6 +1455,13 @@ async def progress(job_id: str):
                     await asyncio.sleep(0.5)
                 continue
 
+            if status == "upload_failed":
+                payload = json.dumps({"type": "upload_failed", "job_id": job_id}, ensure_ascii=False)
+                yield f"data: {payload}\n\n"
+                while jobs.get(job_id, {}).get("status") == "upload_failed":
+                    await asyncio.sleep(0.5)
+                continue
+
             if status in ("done", "error", "cancelled"):
                 final = json.dumps({
                     "type": "done", "status": status,
@@ -1110,3 +1505,94 @@ async def list_jobs():
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+# ── Suno 크레딧 확인 ──────────────────────────────────────────────────────────
+@app.get("/suno-credits")
+async def suno_credits():
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(dotenv_path=PROJECT_ROOT / ".env")
+        api_key = os.getenv("SUNOAPI_KEY")
+        if not api_key:
+            return {"credits": None, "error": "API 키 없음"}
+        resp = http_requests.get(
+            "https://api.sunoapi.org/api/v1/generate/credit",
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=8,
+        )
+        data = resp.json()
+        if data.get("code") == 200:
+            d = data.get("data")
+            if isinstance(d, (int, float)):
+                credits = int(d)
+            elif isinstance(d, dict):
+                v = d.get("credits", d.get("left", d.get("remaining")))
+                credits = int(v) if isinstance(v, (int, float)) else "?"
+            else:
+                credits = "?"
+        else:
+            credits = "?"
+        return {"credits": credits}
+    except Exception as e:
+        return {"credits": "?", "error": str(e)}
+
+
+# ── YouTube 인증 상태 확인 ────────────────────────────────────────────────────
+@app.get("/youtube-status")
+async def youtube_status():
+    try:
+        from scripts.upload_youtube import TOKEN_FILE, CLIENT_SECRETS_FILE
+    except Exception:
+        try:
+            from upload_youtube import TOKEN_FILE, CLIENT_SECRETS_FILE
+        except Exception:
+            return {"status": "error", "message": "모듈 로드 실패"}
+
+    if not os.path.exists(CLIENT_SECRETS_FILE):
+        return {"status": "no_secrets", "message": "client_secrets.json 없음"}
+    if not os.path.exists(TOKEN_FILE):
+        return {"status": "not_auth", "message": "인증 필요"}
+    try:
+        from google.auth.transport.requests import Request
+        with open(TOKEN_FILE, "rb") as f:
+            creds = pickle.load(f)
+        if creds and creds.valid:
+            return {"status": "ok", "message": "연결됨"}
+        elif creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+            with open(TOKEN_FILE, "wb") as f:
+                pickle.dump(creds, f)
+            return {"status": "ok", "message": "연결됨"}
+        else:
+            return {"status": "not_auth", "message": "재인증 필요"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+# ── YouTube OAuth 인증 실행 ───────────────────────────────────────────────────
+_yt_auth_state: dict = {"running": False, "error": None}
+
+@app.post("/youtube-auth")
+async def start_youtube_auth(background_tasks: BackgroundTasks):
+    if _yt_auth_state["running"]:
+        return {"ok": False, "message": "이미 인증 진행 중입니다"}
+
+    def _run_auth():
+        _yt_auth_state["running"] = True
+        _yt_auth_state["error"] = None
+        try:
+            from scripts.upload_youtube import CLIENT_SECRETS_FILE, TOKEN_FILE, SCOPES
+            from google_auth_oauthlib.flow import InstalledAppFlow
+            flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRETS_FILE, SCOPES)
+            creds = flow.run_local_server(port=0, authorization_prompt_message="",
+                                          extra_params={"prompt": "select_account consent"})
+            with open(TOKEN_FILE, "wb") as f:
+                pickle.dump(creds, f)
+        except Exception as e:
+            _yt_auth_state["error"] = str(e)
+        finally:
+            _yt_auth_state["running"] = False
+
+    background_tasks.add_task(_run_auth)
+    return {"ok": True, "message": "브라우저에서 Google 계정 인증을 완료해주세요"}

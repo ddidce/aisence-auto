@@ -228,6 +228,18 @@
     .dot-loading span:nth-child(2) { animation-delay:.2s; }
     .dot-loading span:nth-child(3) { animation-delay:.4s; }
     @keyframes dotFlash { 0%,80%,100%{opacity:.2;}40%{opacity:1;} }
+
+    /* 장르 버튼 그리드 */
+    .genre-group { margin-bottom: 10px; }
+    .genre-group-label { font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: #555; margin-bottom: 6px; }
+    .genre-row { display: flex; flex-wrap: wrap; gap: 5px; }
+    .genre-btn {
+      padding: 5px 11px; border-radius: 16px; border: 1px solid #3a3a3c;
+      background: #2a2a2c; color: #888; font-size: 12px; cursor: pointer;
+      transition: all .18s; white-space: nowrap; line-height: 1.4;
+    }
+    .genre-btn:hover { border-color: #555; color: #ccc; background: #333; }
+    .genre-btn.selected { background: rgba(217,119,6,.18); border-color: #d97706; color: #f0a030; font-weight: 600; }
   </style>
 </head>
 <body>
@@ -243,11 +255,27 @@
       <p class="text-xs" style="color:#666;">AI 음악 자동화 파이프라인</p>
     </div>
   </div>
-  <span id="server-status" class="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full"
-    style="background:#2a2a2c;color:#666;">
-    <span id="status-dot" style="width:6px;height:6px;border-radius:50%;background:#555;display:inline-block;"></span>
-    <span id="status-text">연결 확인 중</span>
-  </span>
+  <div class="flex items-center gap-2">
+    <!-- Suno 크레딧 -->
+    <span id="suno-badge" class="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full"
+      style="background:#2a2a2c;color:#666;">
+      <span>🎵</span>
+      <span id="suno-credit-text">Suno —</span>
+    </span>
+    <!-- YouTube 상태 (클릭 가능) -->
+    <button id="yt-badge" onclick="handleYtBadgeClick()"
+      class="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full"
+      style="background:#2a2a2c;color:#666;border:none;cursor:default;">
+      <span id="yt-dot" style="width:6px;height:6px;border-radius:50%;background:#555;display:inline-block;flex-shrink:0;"></span>
+      <span id="yt-text">YouTube —</span>
+    </button>
+    <!-- 서버 상태 -->
+    <span id="server-status" class="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full"
+      style="background:#2a2a2c;color:#666;">
+      <span id="status-dot" style="width:6px;height:6px;border-radius:50%;background:#555;display:inline-block;"></span>
+      <span id="status-text">연결 확인 중</span>
+    </span>
+  </div>
 </header>
 
 <!-- 메인 -->
@@ -286,18 +314,82 @@
     <!-- 장르 -->
     <div class="mb-5">
       <div class="section-label">장르</div>
-      <select id="pv-genre" class="aisence-input">
-        <option value="lofi">🎧 Lofi Hip-Hop</option>
-        <option value="heal">🌿 힐링 / Ambient</option>
-        <option value="bass">🌑 Bass / Dark</option>
-        <option value="dawn">🌙 새벽 / Dawn</option>
-        <option value="drive">🚗 드라이브</option>
-        <option value="drive_summer">☀️ 여름 드라이브</option>
-        <option value="drive_night">🌃 야간 드라이브</option>
-        <option value="drive_hype">🔥 신나는 드라이브</option>
-        <option value="drive_chill">🛣️ 여유로운 드라이브</option>
-        <option value="drive_rain">🌧️ 빗속 드라이브</option>
-      </select>
+      <input type="hidden" id="pv-genre" value="lofi">
+      <div>
+        <div class="genre-group">
+          <div class="genre-group-label">감성 / 분위기</div>
+          <div class="genre-row">
+            <button class="genre-btn selected" data-genre="lofi"         onclick="selectGenre(this)">🎧 로파이</button>
+            <button class="genre-btn"           data-genre="dawn"         onclick="selectGenre(this)">🌙 새벽</button>
+            <button class="genre-btn"           data-genre="heal"         onclick="selectGenre(this)">🍃 힐링</button>
+            <button class="genre-btn"           data-genre="ambient"      onclick="selectGenre(this)">🌌 앰비언트</button>
+            <button class="genre-btn"           data-genre="sleep"        onclick="selectGenre(this)">😴 수면</button>
+            <button class="genre-btn"           data-genre="study"        onclick="selectGenre(this)">📚 공부/집중</button>
+            <button class="genre-btn"           data-genre="meditation"   onclick="selectGenre(this)">🧘 명상</button>
+            <button class="genre-btn"           data-genre="rain"         onclick="selectGenre(this)">🌧️ 빗속</button>
+            <button class="genre-btn"           data-genre="sunset"       onclick="selectGenre(this)">🌅 노을</button>
+          </div>
+        </div>
+        <div class="genre-group">
+          <div class="genre-group-label">장르</div>
+          <div class="genre-row">
+            <button class="genre-btn" data-genre="citypop"      onclick="selectGenre(this)">🌆 시티팝</button>
+            <button class="genre-btn" data-genre="chillwave"    onclick="selectGenre(this)">🌊 칠웨이브</button>
+            <button class="genre-btn" data-genre="cafe_jazz"    onclick="selectGenre(this)">☕ 카페재즈</button>
+            <button class="genre-btn" data-genre="jazz"         onclick="selectGenre(this)">🎷 재즈</button>
+            <button class="genre-btn" data-genre="swing"        onclick="selectGenre(this)">🎺 스윙</button>
+            <button class="genre-btn" data-genre="ballad"       onclick="selectGenre(this)">🎵 발라드</button>
+            <button class="genre-btn" data-genre="newage"       onclick="selectGenre(this)">🌠 뉴에이지</button>
+            <button class="genre-btn" data-genre="easylistening" onclick="selectGenre(this)">🎶 이지리스닝</button>
+          </div>
+        </div>
+        <div class="genre-group">
+          <div class="genre-group-label">팝 / 댄스 / 일렉</div>
+          <div class="genre-row">
+            <button class="genre-btn" data-genre="kpop"        onclick="selectGenre(this)">🎤 K-Pop</button>
+            <button class="genre-btn" data-genre="aespa"       onclick="selectGenre(this)">🤖 에스파</button>
+            <button class="genre-btn" data-genre="shinee"      onclick="selectGenre(this)">✨ 샤이니</button>
+            <button class="genre-btn" data-genre="snsd"        onclick="selectGenre(this)">🌟 소녀시대</button>
+            <button class="genre-btn" data-genre="disco"       onclick="selectGenre(this)">💿 디스코</button>
+            <button class="genre-btn" data-genre="electronic"  onclick="selectGenre(this)">🎛️ 전자음악</button>
+            <button class="genre-btn" data-genre="rnb"         onclick="selectGenre(this)">🎵 R&amp;B</button>
+            <button class="genre-btn" data-genre="bass"        onclick="selectGenre(this)">🌑 베이스/다크</button>
+          </div>
+        </div>
+        <div class="genre-group">
+          <div class="genre-group-label">악기 / 어쿠스틱</div>
+          <div class="genre-row">
+            <button class="genre-btn" data-genre="piano"    onclick="selectGenre(this)">🎹 피아노</button>
+            <button class="genre-btn" data-genre="acoustic" onclick="selectGenre(this)">🎸 어쿠스틱</button>
+            <button class="genre-btn" data-genre="rock"     onclick="selectGenre(this)">🎸 록</button>
+            <button class="genre-btn" data-genre="latin"    onclick="selectGenre(this)">🌴 라틴/보사노바</button>
+            <button class="genre-btn" data-genre="reggae"   onclick="selectGenre(this)">🏝️ 레게</button>
+          </div>
+        </div>
+        <div class="genre-group">
+          <div class="genre-group-label">활동 / 상황</div>
+          <div class="genre-row">
+            <button class="genre-btn" data-genre="drive"        onclick="selectGenre(this)">🚗 드라이브</button>
+            <button class="genre-btn" data-genre="drive_night"  onclick="selectGenre(this)">🌃 야간드라이브</button>
+            <button class="genre-btn" data-genre="drive_summer" onclick="selectGenre(this)">☀️ 여름드라이브</button>
+            <button class="genre-btn" data-genre="drive_rain"   onclick="selectGenre(this)">🌧️ 빗속드라이브</button>
+            <button class="genre-btn" data-genre="walk"         onclick="selectGenre(this)">🚶 산책</button>
+            <button class="genre-btn" data-genre="travel"       onclick="selectGenre(this)">✈️ 여행</button>
+            <button class="genre-btn" data-genre="cafe"         onclick="selectGenre(this)">☕ 카페</button>
+            <button class="genre-btn" data-genre="lullaby"      onclick="selectGenre(this)">🌛 자장가</button>
+          </div>
+        </div>
+        <div class="genre-group" style="margin-bottom:0;">
+          <div class="genre-group-label">계절</div>
+          <div class="genre-row">
+            <button class="genre-btn" data-genre="spring"  onclick="selectGenre(this)">🌸 봄</button>
+            <button class="genre-btn" data-genre="autumn"  onclick="selectGenre(this)">🍂 가을</button>
+            <button class="genre-btn" data-genre="winter"  onclick="selectGenre(this)">❄️ 겨울</button>
+            <button class="genre-btn" data-genre="cinematic"      onclick="selectGenre(this)">🎬 시네마틱</button>
+            <button class="genre-btn" data-genre="cinematic_jazz" onclick="selectGenre(this)">🎬 시네마틱재즈</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- 모드 선택 + 언어 선택 -->
@@ -414,6 +506,12 @@
         <audio id="sample-audio-1" controls style="width:100%;height:36px;"></audio>
         <button class="btn-approve" id="btn-select-1" onclick="approveSample(1)" style="width:100%;margin-top:6px;font-size:13px;padding:8px;">✅ B 선택</button>
       </div>
+      <!-- 다음 곡 가사 -->
+      <div class="mb-3" id="next-lyrics-section">
+        <div class="text-xs mb-1" style="color:#aaa;">✍️ 다음 곡 가사 <span style="color:#555;">(선택사항 — 비우면 자동 생성)</span></div>
+        <textarea id="next-lyrics-input" class="aisence-input resize-none" rows="4"
+          placeholder="다음 트랙에 쓸 가사를 입력하세요.&#10;비워두면 Suno AI가 자동으로 가사를 만들어줍니다."></textarea>
+      </div>
       <div class="flex gap-2 mt-1">
         <button class="btn-retry" id="btn-retry-sample" onclick="retrySample()">🔄 둘 다 다시 만들기</button>
       </div>
@@ -446,7 +544,7 @@
     </div>
 
     <!-- 실시간 로그 -->
-    <div>
+    <div id="log-card">
       <div class="section-label">실시간 로그</div>
       <div id="log-box">
         <span style="color:#444;">// 생성 시작 버튼을 누르면 로그가 여기에 표시됩니다.</span>
@@ -515,6 +613,12 @@
 let currentJobId      = null;
 let uploadedImagePath = null;
 let uploadedImageUrl  = null;
+
+function selectGenre(btn) {
+  document.querySelectorAll('.genre-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  document.getElementById('pv-genre').value = btn.dataset.genre;
+}
 let autoData = { concept:'', genre:'lofi', title:'' };
 let debounceTimer = null;
 let isInstrumental = true;
@@ -525,6 +629,94 @@ function setMode(mode) {
   document.getElementById('btn-vocal').classList.toggle('active-mode', !isInstrumental);
   document.getElementById('lyrics-section').style.display = isInstrumental ? 'none' : 'block';
   document.getElementById('lang-section').style.display   = isInstrumental ? 'none' : 'block';
+}
+
+// ── Suno 크레딧 ──────────────────────────────────────────────────────────────
+async function refreshSunoCredits() {
+  try {
+    const res  = await fetch('/suno-credits');
+    const data = await res.json();
+    const badge = document.getElementById('suno-badge');
+    const text  = document.getElementById('suno-credit-text');
+    if (data.credits === null || data.credits === '?') {
+      text.textContent = 'Suno ?';
+      badge.style.color = '#666';
+    } else {
+      text.textContent = `Suno ${data.credits}크레딧`;
+      badge.style.color = Number(data.credits) < 10 ? '#ef4444' : '#d97706';
+    }
+  } catch {
+    document.getElementById('suno-credit-text').textContent = 'Suno —';
+  }
+}
+
+// ── YouTube 상태 ──────────────────────────────────────────────────────────────
+let _ytStatus = 'unknown';
+async function refreshYtStatus() {
+  try {
+    const res  = await fetch('/youtube-status');
+    const data = await res.json();
+    _ytStatus = data.status;
+    const dot  = document.getElementById('yt-dot');
+    const text = document.getElementById('yt-text');
+    const btn  = document.getElementById('yt-badge');
+    if (data.status === 'ok') {
+      dot.style.background = '#22c55e';
+      text.textContent = 'YouTube 연결됨';
+      btn.style.color  = '#22c55e';
+      btn.style.cursor = 'default';
+      btn.title = '';
+    } else if (data.status === 'not_auth') {
+      dot.style.background = '#f59e0b';
+      text.textContent = 'YouTube 인증 필요 (클릭)';
+      btn.style.color  = '#f59e0b';
+      btn.style.cursor = 'pointer';
+      btn.title = '클릭하면 브라우저에서 Google 인증이 시작됩니다';
+    } else if (data.status === 'no_secrets') {
+      dot.style.background = '#ef4444';
+      text.textContent = 'YouTube 설정 없음';
+      btn.style.color  = '#ef4444';
+      btn.style.cursor = 'default';
+      btn.title = 'scripts/client_secrets.json 파일이 필요합니다';
+    } else {
+      dot.style.background = '#ef4444';
+      text.textContent = 'YouTube 오류';
+      btn.style.color  = '#ef4444';
+      btn.style.cursor = 'pointer';
+      btn.title = data.message || '';
+    }
+  } catch {
+    document.getElementById('yt-text').textContent = 'YouTube —';
+  }
+}
+
+async function handleYtBadgeClick() {
+  if (_ytStatus === 'ok' || _ytStatus === 'no_secrets') return;
+  const btn = document.getElementById('yt-badge');
+  btn.style.cursor = 'wait';
+  document.getElementById('yt-text').textContent = 'YouTube 인증 중...';
+  try {
+    const res  = await fetch('/youtube-auth', {method:'POST'});
+    const data = await res.json();
+    if (data.ok) {
+      appendLog('🔑 브라우저에서 Google 계정 인증을 완료해주세요...');
+      // 인증 완료될 때까지 5초마다 상태 체크
+      let tries = 0;
+      const poll = setInterval(async () => {
+        await refreshYtStatus();
+        tries++;
+        if (_ytStatus === 'ok' || tries > 24) {
+          clearInterval(poll);
+          if (_ytStatus === 'ok') appendLog('✅ YouTube 인증 완료!');
+        }
+      }, 5000);
+    } else {
+      appendLog(`⚠️ ${data.message}`);
+      await refreshYtStatus();
+    }
+  } catch {
+    await refreshYtStatus();
+  }
 }
 
 // ── 서버 상태 ────────────────────────────────────────────────────────────────
@@ -541,6 +733,10 @@ async function checkServer() {
   }
 }
 checkServer();
+refreshSunoCredits();
+refreshYtStatus();
+setInterval(refreshSunoCredits, 60000);   // 1분마다 크레딧 갱신
+setInterval(refreshYtStatus,   30000);    // 30초마다 유튜브 상태 갱신
 
 // ── 시리즈명 입력 → 자동 분석 ────────────────────────────────────────────────
 function onSeriesInput() {
@@ -563,13 +759,10 @@ async function analyzeSeries(name) {
     const data = await res.json();
     autoData = data;
 
-    const genreLabels = {
-      lofi:'🎧 Lofi Hip-Hop', heal:'🌿 힐링 / Ambient', bass:'🌑 Bass / Dark',
-      dawn:'🌙 새벽 / Dawn', drive:'🚗 드라이브', drive_summer:'☀️ 여름 드라이브',
-      drive_night:'🌃 야간 드라이브', drive_hype:'🔥 신나는 드라이브',
-      drive_chill:'🛣️ 여유로운 드라이브', drive_rain:'🌧️ 빗속 드라이브',
-    };
-    document.getElementById('pv-genre').value   = data.genre;
+    // 장르 버튼 선택
+    const genreBtn = document.querySelector(`.genre-btn[data-genre="${data.genre}"]`);
+    if (genreBtn) selectGenre(genreBtn);
+    else document.getElementById('pv-genre').value = data.genre;
     document.getElementById('pv-concept').value = data.concept;
     document.getElementById('pv-title').value   = data.title;
   } catch {
@@ -743,6 +936,9 @@ function listenProgress(jobId) {
       appendLog(`  → ${data.tracks.length}개 트랙 추가됨`);
     } else if (data.type === 'preview') {
       showPreviewModal(jobId, data);
+    } else if (data.type === 'upload_failed') {
+      appendLog('⚠️ 업로드 실패 — 아래 버튼으로 다시 시도할 수 있습니다.');
+      showUploadRetryButton(jobId);
     } else if (data.type === 'done') {
       es.close();
       btn.disabled = false; btn.innerHTML = '✨ 생성 시작';
@@ -789,11 +985,17 @@ function showSamplePlayer(jobId, trackNum, totalTracks, trackCount) {
 
 async function approveSample(selectedIndex) {
   const jobId = document.getElementById('btn-select-0').dataset.jobId;
+  const nextLyrics = document.getElementById('next-lyrics-input').value.trim();
   document.getElementById('sample-card').classList.remove('visible');
   document.getElementById('sample-audio-0').src = '';
   document.getElementById('sample-audio-1').src = '';
-  appendLog(`✅ ${selectedIndex === 0 ? 'A' : 'B'} 버전 선택`);
-  await fetch(`/approve-sample/${jobId}?selected_index=${selectedIndex}`, {method:'POST'});
+  document.getElementById('next-lyrics-input').value = '';
+  appendLog(`✅ ${selectedIndex === 0 ? 'A' : 'B'} 버전 선택${nextLyrics ? ' (다음 곡 가사 입력됨)' : ''}`);
+  await fetch(`/approve-sample/${jobId}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({selected_index: selectedIndex, next_lyrics: nextLyrics})
+  });
 }
 
 async function retrySample() {
@@ -1026,6 +1228,23 @@ function showPreviewModal(jobId, data) {
     appendLog('⛔ 업로드 취소됨');
     await fetch(`/cancel-upload/${jobId}`, {method:'POST'});
   };
+}
+
+// ── 업로드 재시도 버튼 ────────────────────────────────────────────────────────
+function showUploadRetryButton(jobId) {
+  const existing = document.getElementById('btn-upload-retry');
+  if (existing) existing.remove();
+  const btn = document.createElement('button');
+  btn.id = 'btn-upload-retry';
+  btn.className = 'btn-retry';
+  btn.style.cssText = 'margin-top:12px; width:100%;';
+  btn.textContent = '🔁 업로드 재시도 (미리보기부터)';
+  btn.onclick = async () => {
+    btn.disabled = true;
+    btn.textContent = '⏳ 준비 중...';
+    await fetch(`/retry-upload/${jobId}`, {method:'POST'});
+  };
+  document.getElementById('log-card').appendChild(btn);
 }
 
 // ── 결과 카드 ─────────────────────────────────────────────────────────────────

@@ -53,14 +53,14 @@ def generate_music(title: str, style: str, lyrics: str,
             "vocalGender": "f",
         }
     else:
-        # 보컬 + 자동 가사: prompt에 언어 명시
-        prompt = f"{style}. Lyrics in {language}."
+        # 보컬 + 자동 가사: customMode=False로 Suno가 자동 생성
+        lang_tag = f", lyrics in {language}, {language} only" if language and language.lower() != "korean" else ""
         payload = {
             "customMode": False,
             "instrumental": False,
             "model": model,
             "title": title,
-            "prompt": prompt,
+            "prompt": f"{style}{lang_tag}",
             "callBackUrl": "https://webhook.site/aisence-callback",
             "vocalGender": "f",
         }
