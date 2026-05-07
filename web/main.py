@@ -214,6 +214,9 @@ class ApproveRequest(BaseModel):
     selected_index: int = 0
     next_lyrics: str = ""
 
+class RetryRequest(BaseModel):
+    genre: str = ""
+
 
 # ── 시리즈명 분석 ──────────────────────────────────────────────────────────────
 def analyze_series(series_name: str) -> dict:
@@ -1040,11 +1043,26 @@ async def run_pipeline(job_id: str, req: GenerateRequest):
     try:
         all_mp3_paths = []
 
+        # ── 트랙 변형 태그 (트랙마다 다른 느낌) ─────────────────────────────────
+        TRACK_VARIATIONS = [
+            "",
+            "slightly different chord voicing, alternative melody",
+            "different rhythmic feel, contrasting arrangement",
+            "stripped back, minimal instrumentation",
+            "lush and layered, rich texture",
+            "uplifting energy shift, brighter mood",
+            "introspective, slower and more spacious",
+            "dynamic contrast, unexpected turn",
+            "groovy syncopation, rhythmic variation",
+            "cinematic build, dramatic arc",
+        ]
+
         # ── 1. 샘플 1배치 생성 (2트랙) ──────────────────────────────────────────
         mode_label = "반주 모드" if req.instrumental else "보컬 모드"
         push_message(job_id, f"🎵 샘플 생성 중... (Suno AI) [{mode_label}]")
         sample_title = f"track_sample" if req.language and req.language.lower() != "korean" else f"{req.series_name}_sample"
         suno_style = build_suno_style(req.genre, req.concept)
+        jobs[job_id]["suno_style"] = suno_style  # retry 시 업데이트 가능하도록 저장
         sample_paths = await generate_one_batch(job_id, series_dir, sample_title, suno_style, 1,
                                                 instrumental=req.instrumental, lyrics=req.lyrics, language=req.language)
 
@@ -1078,6 +1096,8 @@ async def run_pipeline(job_id: str, req: GenerateRequest):
                 push_message(job_id, "✅ 샘플 승인 — 나머지 음악 생성 시작")
                 break
             else:
+                # retry 시 suno_style이 업데이트됐을 수 있으므로 최신 값 사용
+                suno_style = jobs[job_id].get("suno_style", suno_style)
                 push_message(job_id, "🔄 샘플 다시 생성 중...")
                 jobs[job_id]["status"] = "running"
                 sample_paths = await generate_one_batch(job_id, series_dir, sample_title, suno_style, 1,
@@ -1091,11 +1111,18 @@ async def run_pipeline(job_id: str, req: GenerateRequest):
             batch_num = i + 2  # 샘플이 1번이므로 2번부터
             t_title = f"track_{i+1}" if req.language and req.language.lower() != "korean" else f"{safe_series_name}_트랙{i+1}"
             batch_lyrics = current_lyrics  # 이 배치에 쓸 가사
+
+            # 최신 suno_style 읽기 (retry 중 콤보 변경 반영)
+            current_style = jobs[job_id].get("suno_style", suno_style)
+            # 트랙마다 변형 태그 추가 (스타일 겹침 방지)
+            variation = TRACK_VARIATIONS[batch_num % len(TRACK_VARIATIONS)]
+            batch_style = f"{current_style}, {variation}" if variation else current_style
+
             push_message(job_id, f"🎵 트랙 {batch_num}/{total_batches} 생성 중...{'(가사 직접 입력)' if batch_lyrics else ''}")
             jobs[job_id]["status"] = "running"
 
             # 생성 (재시도 포함)
-            track_paths = await generate_one_batch(job_id, series_dir, t_title, suno_style, batch_num,
+            track_paths = await generate_one_batch(job_id, series_dir, t_title, batch_style, batch_num,
                                                    instrumental=req.instrumental, lyrics=batch_lyrics, language=req.language)
             if not track_paths:
                 push_message(job_id, f"  ⚠️ 트랙 {batch_num} 생성 실패 — 스킵")
@@ -1129,9 +1156,12 @@ async def run_pipeline(job_id: str, req: GenerateRequest):
                     push_message(job_id, f"✅ 트랙 {batch_num} 승인")
                     break
                 else:
+                    # retry 시 suno_style 업데이트 반영
+                    current_style = jobs[job_id].get("suno_style", suno_style)
+                    batch_style = f"{current_style}, {variation}" if variation else current_style
                     push_message(job_id, f"🔄 트랙 {batch_num} 다시 생성 중...")
                     jobs[job_id]["status"] = "running"
-                    track_paths = await generate_one_batch(job_id, series_dir, t_title, req.concept, batch_num,
+                    track_paths = await generate_one_batch(job_id, series_dir, t_title, batch_style, batch_num,
                                                            instrumental=req.instrumental, lyrics=batch_lyrics, language=req.language)
                     if not track_paths:
                         push_message(job_id, f"  ⚠️ 재생성 실패 — 스킵")
@@ -1408,9 +1438,15 @@ async def approve_sample(job_id: str, req: ApproveRequest = ApproveRequest()):
 
 
 @app.post("/retry-sample/{job_id}")
-async def retry_sample(job_id: str):
+async def retry_sample(job_id: str, req: RetryRequest = RetryRequest()):
     if job_id not in jobs:
         raise HTTPException(404)
+    # 콤보가 변경됐으면 suno_style 재생성
+    if req.genre:
+        concept = jobs[job_id].get("concept", "")
+        new_style = build_suno_style(req.genre, concept)
+        jobs[job_id]["suno_style"] = new_style
+        print(f"[retry] genre changed → {req.genre}, new style: {new_style[:60]}...")
     jobs[job_id]["sample_approved"] = False
     if job_id in sample_events:
         sample_events[job_id].set()

@@ -413,7 +413,7 @@
         <button id="btn-vocal" class="mode-btn" onclick="setMode('vocal')">🎤 노래 포함 (Vocal)</button>
       </div>
       <div id="lang-section" style="display:none;">
-        <select id="pv-lang" class="aisence-input">
+        <select id="pv-lang" class="aisence-input" onchange="localStorage.setItem('aisence_lang', this.value)">
           <option value="English">🇺🇸 English</option>
           <option value="Korean">🇰🇷 한국어</option>
           <option value="Japanese">🇯🇵 日本語</option>
@@ -690,7 +690,16 @@ function setMode(mode) {
   document.getElementById('btn-vocal').classList.toggle('active-mode', !isInstrumental);
   document.getElementById('lyrics-section').style.display = isInstrumental ? 'none' : 'block';
   document.getElementById('lang-section').style.display   = isInstrumental ? 'none' : 'block';
+  localStorage.setItem('aisence_mode', mode);
 }
+
+function _restoreSettings() {
+  const savedMode = localStorage.getItem('aisence_mode');
+  if (savedMode) setMode(savedMode);
+  const savedLang = localStorage.getItem('aisence_lang');
+  if (savedLang) document.getElementById('pv-lang').value = savedLang;
+}
+_restoreSettings();
 
 // ── Suno 크레딧 ──────────────────────────────────────────────────────────────
 async function refreshSunoCredits() {
@@ -925,12 +934,13 @@ async function startGenerate() {
   const seriesName = document.getElementById('series-name').value.trim();
   if (!seriesName) { alert('시리즈명을 입력해주세요.'); return; }
 
-  // 필드에서 직접 읽기 (수동 수정 반영)
+  // 분석 중 상태면 완료 대기, 비어있으면 새로 분석
   const concept = document.getElementById('pv-concept').value.trim();
   const title   = document.getElementById('pv-title').value.trim();
-  const genre   = document.getElementById('pv-genre').value;
 
-  if (!concept || !title) await analyzeSeries(seriesName);
+  if (!concept || !title || concept === '분석 중...' || title === '분석 중...') {
+    await analyzeSeries(seriesName);
+  }
 
   const finalConcept = document.getElementById('pv-concept').value.trim() || autoData.concept;
   const finalTitle   = document.getElementById('pv-title').value.trim()   || autoData.title;
@@ -966,8 +976,13 @@ async function startGenerate() {
       })
     });
     if (!res.ok) {
-      let msg = '서버 오류';
-      try { const err = await res.json(); msg = err.detail || msg; } catch {}
+      let msg = `서버 오류 (${res.status})`;
+      try {
+        const err = await res.json();
+        if (err.detail) {
+          msg = typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail);
+        }
+      } catch {}
       throw new Error(msg);
     }
     const {job_id} = await res.json();
@@ -1064,8 +1079,13 @@ async function retrySample() {
   document.getElementById('sample-card').classList.remove('visible');
   document.getElementById('sample-audio-0').src = '';
   document.getElementById('sample-audio-1').src = '';
+  const currentGenre = document.getElementById('pv-genre').value;
   appendLog('🔄 샘플 다시 생성 요청...');
-  await fetch(`/retry-sample/${jobId}`, {method:'POST'});
+  await fetch(`/retry-sample/${jobId}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({genre: currentGenre})
+  });
 }
 
 // ── 트랙 순서 + 미니 플레이어 ────────────────────────────────────────────────
